@@ -56,7 +56,6 @@ router.delete('/taskTemplate/:id', (req, res) => {
     });
 });
 
-
 // 新增接口：查询用户下所有评估业务系统
 router.get('/userWorks', (req, res) => { 
     const username = req.session.userId; // 从 session 中获取用户名
@@ -138,6 +137,26 @@ router.get('/userWorkTasks', (req, res) => {
 
             return res.status(200).json(results);
         }
+    });
+});
+
+// 新增接口：新增用户工作任务
+router.post('/addUserWorkTask', (req, res) => {
+    const username = req.session.userId; // 从 session 中获取用户名
+    const groupId = req.session.groupId; // 从 session 中获取 group_id
+
+    if (!username) {
+        return res.status(401).json({ message: 'User not logged in' });
+    }
+
+    // 从 Cookie 中获取加密的系统信息并解密
+    const encryptedTaskInfo = req.cookies.taskInfo;
+
+    cardTask.addUserWorkTask(groupId, req.body, encryptedTaskInfo, (err,results) => {
+        if (err) {
+            return res.status(500).json({error: err.message });
+        }
+        res.status(201).json({id:results.insertId,message: 'User work task added successfully' });
     });
 });
 
@@ -281,18 +300,27 @@ router.post('/updateTask/:id', (req, res) => {
     });
 });
 
+router.post('/getTaskByCategory',(req,res)=>{
+    const category = req.body.category;
+    cardTask.getTaskByCategory(category,(err,results)=>{
+        if(err){
+            return res.status(500).json({error:err.message});
+        }else{
+            return res.status(200).json(results);
+        }
+    })
+})
+
 // 新增接口：根据任务ID修改materialPath值，并且存储文件到项目根目录下的uploads/system_name/work_classification目录下
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const { system_name, work_classification } = JSON.parse(decrypt(req.cookies.taskInfo)); // 从 Cookie 中获取加密的系统信息并解密
-        const decodedSystemName = Buffer.from(system_name, 'latin1').toString('utf8'); // 处理 system_name 为中文的情况
-        const uploadDir = path.join(__dirname, '../../uploads', decodedSystemName, work_classification);
+        const uploadDir = path.join(__dirname, '../../uploads/temp');
         fs.mkdirSync(uploadDir, { recursive: true });
         cb(null, uploadDir);
     },
     filename: (req, file, cb) => {
-        const decodedFileName = Buffer.from(file.originalname, 'latin1').toString('utf8'); // 处理文件名称为中文的情况
-        cb(null, decodedFileName);
+        const tempFileName = uuidv4(); // 使用 uuid 生成临时文件名
+        cb(null, tempFileName);
     }
 });
 
@@ -314,20 +342,20 @@ router.post('/updateTaskMaterial/:id', upload.single('file'), (req, res) => {
 
     const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
     if (!allowedTypes.includes(req.file.mimetype)) {
+        fs.unlinkSync(req.file.path); // 删除临时文件
         return res.status(400).json({ message: '仅支持上传jpeg、png、jpg格式的文件' });
     }
 
-    const file = req.file;
-    const decodedFileName = Buffer.from(file.originalname, 'latin1').toString('utf8'); // 处理文件名称为中文的情况
-    const relativeFilePath = path.relative(path.join(__dirname, '../../'), path.join(file.destination, decodedFileName));
+    const decodedFileName = Buffer.from(req.file.originalname, 'latin1').toString('utf8'); // 处理文件名称为中文的情况
 
     // 查询当前 materialPath 的内容
     const selectQuery = `
-        SELECT materialPath FROM card_task WHERE id = ?;
+        SELECT title,materialPath FROM card_task WHERE id = ?;
     `;
 
     db.query(selectQuery, [taskId], (err, results) => {
         if (err) {
+            fs.unlinkSync(req.file.path); // 删除临时文件
             return res.status(500).json({ error: err.message });
         }
 
@@ -340,17 +368,32 @@ router.post('/updateTaskMaterial/:id', upload.single('file'), (req, res) => {
             }
         }
 
+        // 检查文件名是否已存在
+        const fileNameExists = currentMaterialPath.some(item => path.basename(item.path) === decodedFileName);
+        if (fileNameExists) {
+            fs.unlinkSync(req.file.path); // 删除临时文件
+            return res.status(400).json({ message: 'File name already exists' });
+        }
+
         // 检查长度限制
         if (currentMaterialPath.length >= MAX_MATERIAL_LEN) {
+            fs.unlinkSync(req.file.path); // 删除临时文件
             return res.status(400).json({ message: 'Material path limit exceeded' });
         }
 
+        // 确定最终的上传目录
+        const { system_name, work_classification } = JSON.parse(decrypt(req.cookies.taskInfo));
+        const decodedSystemName = Buffer.from(system_name, 'latin1').toString('utf8');
+        const finalDir = path.join(__dirname, '../../uploads/works', decodedSystemName, work_classification, results[0].title);
+        fs.mkdirSync(finalDir, { recursive: true });
+
+        // 重命名文件到最终目录
+        const finalPath = path.join(finalDir, decodedFileName);
+        fs.renameSync(req.file.path, finalPath);
+
         // 使用 uuid 生成唯一的 id
         const newId = uuidv4();
-        
-        console.log("currentMaterialPath:",currentMaterialPath)
-        // 追加新的 JSON 内容，path 修改为文件名
-        currentMaterialPath.push({ id: newId, path: relativeFilePath });
+        currentMaterialPath.push({ id: newId, path: path.relative(path.join(__dirname, '../../'), finalPath) });
 
         const updateQuery = `
             UPDATE card_task
@@ -363,11 +406,11 @@ router.post('/updateTaskMaterial/:id', upload.single('file'), (req, res) => {
                 return res.status(500).json({ error: err.message });
             }
 
-            for (const material of currentMaterialPath) {   
+            for (const material of currentMaterialPath) {
                 resultMaterialPath.push({ id: material.id, path: path.basename(material.path) });
             }
 
-            res.status(200).json({ taskId: taskId, filePath:  resultMaterialPath});
+            res.status(200).json({ taskId: taskId, filePath: resultMaterialPath });
         });
     });
 });
@@ -399,16 +442,14 @@ router.get('/downloadTaskMaterial/:id', (req, res) => {
 
         // 找到要下载的文件
         const fileToDownload = materialPath.find(item => item.id === fileId);
-        const fileName = path.basename(fileToDownload.path);
         if (!fileToDownload) {
             return res.status(404).json({ message: 'File not found' });
         }
 
+        const fileName = path.basename(fileToDownload.path);
         const filePath = path.join(__dirname, '../../', fileToDownload.path);
 
         // 使用res.download方法下载文件
-        // filePath是文件的路径，fileName是下载时显示的文件名
-        // 如果下载过程中出现错误，会返回500状态码和错误信息
         res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
         res.download(filePath, fileName, (err) => {
             if (err) {

@@ -2,10 +2,11 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const { v4: uuidv4 } = require('uuid');
 const db = require('../config/db'); // 引入数据库配置
 const router = express.Router();
 
-const UPLOAD_FILE_BASE = "../../uploads";
+const UPLOAD_FILE_BASE = "../../uploads/";
 
 // 设置文件存储配置
 const storage = multer.diskStorage({
@@ -13,7 +14,8 @@ const storage = multer.diskStorage({
     cb(null, path.join(__dirname, UPLOAD_FILE_BASE));
   },
   filename: (req, file, cb) => {
-    cb(null, `${Date.now()}-${file.originalname}`);
+    const tempFileName = uuidv4(); // 使用 uuid 生成临时文件名
+    cb(null, tempFileName);
   }
 });
 
@@ -92,7 +94,7 @@ router.post('/directories', (req, res) => {
         return res.status(500).json({ error: err.message });
       }
       const newDirectory = { id: result.insertId, name, files: [], isOpen: false };
-      const uploadBasePath = path.join(__dirname, UPLOAD_FILE_BASE);
+      const uploadBasePath = path.join(__dirname, UPLOAD_FILE_BASE, "filemanager");
       if (!fs.existsSync(uploadBasePath)) {
         fs.mkdirSync(uploadBasePath, { recursive: true });
       }
@@ -105,32 +107,51 @@ router.post('/directories', (req, res) => {
 
 // 添加文件
 router.post('/files', upload.single('file'), (req, res) => {
-  const { directory_id, name } = req.body;
+  const { directory_id } = req.body;
   const personaId = req.session.personaId; // 获取 persona_id
+
+  const filename  = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
 
   if (personaId == 707) {
     return res.status(403).json({ message: 'Permission denied' });
   }
 
   db.query("SELECT * FROM directories WHERE id = ?", [directory_id], (err, rows) => {
+    if (err) {
+      return res.status(500).json({ message: err.message }); // 确保使用 return
+    }
+
     if (rows.length > 0) {
       const directory = rows[0];
-      const newFilePath = path.join(UPLOAD_FILE_BASE, directory.name, name || req.file.originalname);
-      db.query("INSERT INTO files (name, path, directory_id) VALUES (?, ?, ?)", [name || req.file.originalname, newFilePath, directory_id], (err, result) => {
+
+      // 查询当前目录下是否有同名文件
+      db.query("SELECT * FROM files WHERE directory_id = ? AND name = ?", [directory_id, filename], (err, rows) => {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ message: err.message }); // 确保使用 return
         }
-        const newFile = { id: result.insertId, name: name || req.file.originalname, path: newFilePath };
-        const targetPath = path.join(__dirname, newFilePath);
-        fs.rename(req.file.path, targetPath, (err) => {
+
+        if (rows.length > 0) {
+          fs.unlinkSync(req.file.path);
+          return res.status(400).json({ message: 'File name already exists in the directory' }); // 确保使用 return
+        }
+
+        const newFilePath = path.join(UPLOAD_FILE_BASE, 'filemanager', directory.name, filename);
+        db.query("INSERT INTO files (name, path, directory_id) VALUES (?, ?, ?)", [filename, newFilePath, directory_id], (err, result) => {
           if (err) {
-            return res.status(500).json({ error: '文件存储失败' });
+            return res.status(500).json({ error: err.message }); // 确保使用 return
           }
-          res.json(newFile);
+          const newFile = { id: result.insertId, name: filename, path: newFilePath };
+          const targetPath = path.join(__dirname, newFilePath);
+          fs.rename(req.file.path, targetPath, (err) => {
+            if (err) {
+              return res.status(500).json({ error: '文件存储失败' }); // 确保使用 return
+            }
+            res.json(newFile); // 确保在此之后没有其他响应操作
+          });
         });
       });
     } else {
-      res.status(404).json({ error: 'Directory not found' });
+      res.status(404).json({ error: 'Directory not found' }); // 确保使用 return
     }
   });
 });
@@ -195,7 +216,7 @@ router.post('/timeline', upload.single('attachment_path'), (req, res) => {
   const attachment = req.file;
   let attachmentPath = null;
   if (attachment) {
-    const uploadDir = path.join(__dirname, UPLOAD_FILE_BASE, date, title);
+    const uploadDir = path.join(__dirname, UPLOAD_FILE_BASE, "timeline", date, title);
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }

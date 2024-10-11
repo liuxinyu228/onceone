@@ -24,7 +24,7 @@
       </div>
       <!-- UserInfo 组件 -->
       <div class="flex items-center p-2 border-t border-gray-300">
-        <UserInfo></UserInfo>
+        <UserInfo :orientation="'up'"></UserInfo>
       </div>
     </div>
 </template>

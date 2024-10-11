@@ -4,34 +4,47 @@
         <h2 class="text-xl font-bold mb-4">{{ isViewOnly ? '查看任务' : '编辑任务' }}</h2>
   
         <label class="block mb-2">任务标题：</label>
-        <p class="w-full border p-2 mb-4">{{ editedTask.title }}</p>
+        <input
+          v-if="editedTask.taskCategory === '协助项' && !isViewOnly"
+          type="text"
+          v-model="editedTask.title"
+          class="w-full border p-2 mb-4"
+        />
+        <p v-else class="w-full border p-2 mb-4">{{ editedTask.title }}</p>
   
         <label class="block mb-2">任务类型：</label>
         <p class="w-full border p-2 mb-4">{{ editedTask.taskCategory }}</p>
   
         <label class="block mb-2">任务描述：</label>
-        <p class="w-full border p-2 mb-4">{{ editedTask.description }}</p>
-  
-        <label class="block mb-2">评估指引：</label>
-        <p class="w-full border p-2 mb-4">{{ editedTask.guide }}</p>
-  
-        <label class="block mb-2">检查描述：</label>
         <input
+          v-if="editedTask.taskCategory === '协助项' && !isViewOnly"
+          type="text"
+          v-model="editedTask.description"
+          class="w-full border p-2 mb-4"
+        />
+        <p v-else class="w-full border p-2 mb-4">{{ editedTask.description }}</p>
+  
+        <label v-if="editedTask.taskCategory !== '协助项'" class="block mb-2">评估指引：</label>
+        <p  v-if="editedTask.taskCategory !== '协助项'" class="w-full border p-2 mb-4">{{ editedTask.guide }}</p>
+  
+        <label v-if="editedTask.taskCategory !== '协助项'" class="block mb-2">检查描述：</label>
+        <input
+          v-if="editedTask.taskCategory !== '协助项'"
           type="text"
           v-model="editedTask.reportContent"
           class="w-full border p-2 mb-4"
           :disabled="isViewOnly"
         />
   
-        <label class="block mb-2">证明材料：</label>
-        <div v-if="!isViewOnly">
+        <label v-if="editedTask.taskCategory !== '协助项'" class="block mb-2">证明材料：</label>
+        <div v-if="editedTask.taskCategory !== '协助项' && !isViewOnly">
           <input
             type="file"
             accept=".jpeg,.png,.jpg"
             @change="handleFileUpload"
             class="w-full border p-2 mb-4"
           />
-          <div v-if="editedTask.materialPath.length > 0" class="flex flex-wrap gap-2">
+          <div v-if="editedTask.taskCategory !== '协助项' && editedTask.materialPath.length > 0" class="flex flex-wrap gap-2">
             <div
               v-for="(file, index) in editedTask.materialPath"
               :key="index"
@@ -51,7 +64,7 @@
           </div>
         </div>
     
-        <div v-else class="w-full border p-2 mb-4">
+        <div v-if="editedTask.taskCategory !== '协助项' && isViewOnly" class="w-full border p-2 mb-4">
           <div v-if="editedTask.materialPath.length > 0" class="flex flex-wrap gap-2">
             <div
               v-for="(file, index) in editedTask.materialPath"
@@ -64,8 +77,8 @@
           </div>
         </div>
   
-        <label class="block mb-2">风险判断：</label>
-        <select v-model="editedTask.riskValue" class="w-full border p-2 mb-4 bg-white shadow" :disabled="isViewOnly">
+        <label v-if="editedTask.taskCategory !== '协助项'" class="block mb-2">风险判断：</label>
+        <select v-if="editedTask.taskCategory !== '协助项'" v-model="editedTask.riskValue" class="w-full border p-2 mb-4 bg-white shadow" :disabled="isViewOnly">
           <option value="high">高</option>
           <option value="medium">中</option>
           <option value="low">低</option>
@@ -77,7 +90,7 @@
         </div>
       </div>
     </div>
-    <div v-if="showStatusModal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
+    <div v-if="showStatusModal && editedTask.taskCategory !== '协助项'" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
       <div class="bg-white p-6 rounded-lg shadow-lg w-1/3">
         <h2 class="text-xl font-bold mb-4">选择任务状态</h2>
         <select v-model="Status" class="w-full border p-2 mb-4 bg-white shadow">
@@ -119,6 +132,7 @@
       },
     },
     data() {
+      console.log("log:",this.initializeTask());
       return {
         editedTask: this.initializeTask(), // 初始化任务
         showStatusModal: false,
@@ -134,7 +148,6 @@
     },
     methods: {
       initializeTask() {
-        console.log(this.task.materialPath)
         return {
           id: this.task.id,
           title: this.task.title ? this.task.title : '',
@@ -142,7 +155,7 @@
           description: this.task.description ? this.task.description : '',
           guide: this.task.guide ? this.task.guide : '',
           reportContent: this.task.reportContent ? this.task.reportContent : '',
-          materialPath: this.task.materialPath ? this.task.materialPath : [{id:1,path:""}],
+          materialPath: this.task.materialPath ? this.task.materialPath : [],
           riskValue: this.task.riskValue ? this.task.riskValue : 'low',
           status: this.task.status ? this.task.status : '待开始',
           created_at: this.task.created_at,
@@ -150,7 +163,11 @@
         };
       },
       saveTask() {
-        this.showStatusModal = true; // 显示状态选择弹窗
+        if (this.editedTask.taskCategory !== '协助项') {
+          this.showStatusModal = true; // 显示状态选择弹窗
+        } else {
+          this.confirmStatus(); // 直接保存任务
+        }
       },
       closeStatusModal() {
         this.showStatusModal = false; // 关闭状态选择弹窗
@@ -203,16 +220,19 @@
           body: formData
         })
         .then(response => {
+          const data = response.json();
           if (!response.ok) {
             if (response.status === 400) {
               this.showAlertMessage('文件上传数量达到最大'); 
               return;
             }
-            this.showAlertMessage('文件上传失败'); 
+            this.showAlertMessage('文件上传失败:' + data.message); 
             return;
           }
 
-          const data =  response.json();
+          return data;
+        })
+        .then(data => {
           this.editedTask.materialPath = data.filePath;
           this.$emit('save', this.editedTask, false); // 触发保存事件，并传递编辑后的任务
           this.showAlertMessage('文件上传成功');

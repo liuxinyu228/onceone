@@ -41,7 +41,7 @@ function isAdmin(req, res, next) {
   if (req.session && req.session.is_admin === 1) {
     return next();
   } else {
-    return res.status(403).json({ message: '需要管理员权限' });
+    return res.status(403).json({ status:false, message: '需要管理员权限' });
   }
 }
 

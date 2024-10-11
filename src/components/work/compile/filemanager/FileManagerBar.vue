@@ -46,7 +46,8 @@
                 </div>
                 <div v-if="directory.isOpen" class="px-4 py-2">
                   <ul class="list-disc list-inside">
-                    <li v-for="file in directory.files" :key="file.name" class="text-gray-600 flex justify-between items-center">
+                    
+                    <li v-for="file in directory.files" :key="file.name" class="text-gray-600 flex justify-between items-center mb-2">
                       {{ file.name }}
                       <div>
                         <button
@@ -66,12 +67,9 @@
                   </ul>
                   <!-- Add File Form -->
                   <div class="mt-2 flex">
-                    <input
-                      v-model="newFileName"
-                      type="text"
-                      placeholder="Enter file name"
-                      class="flex-grow px-3 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                    />
+                    <p
+                      class="flex-grow px-3 py-2 border border-gray-300  rounded-l-md " 
+                      >上传文件:</p>
                     <input
                       type="file"
                       @change="handleFileChange"
@@ -186,6 +184,10 @@
       }
     },
     methods: {
+      showMessage(message) {
+        this.errorMessage = message;
+        this.showErrorModal = true;
+      },
       async fetchDirectories() {
         try {
           const response = await axios.get(`${config.getSetting('API_BASE_URL')}/api/directories`, {
@@ -208,13 +210,11 @@
               this.directories.push(response.data.directory)
               this.newDirectoryName = ''
             } else {
-              this.errorMessage = response.data.message || '新增目录失败';
-              this.showErrorModal = true;
+              this.showMessage(response.data.message || '新增目录失败');
             }
           })
           .catch(err => {
-            this.errorMessage = err.message;
-            this.showErrorModal = true;
+            this.showMessage(err.message);
           })
         }
       },
@@ -223,19 +223,23 @@
           const formData = new FormData()
           formData.append('file', this.newFile)
           formData.append('directory_id', directory.id)
-          formData.append('name', this.newFileName.trim())
 
           try {
-            const response = await axios.post(`${config.getSetting('API_BASE_URL')}/api/files`, formData, {
+            await axios.post(`${config.getSetting('API_BASE_URL')}/api/files`, formData, {
               headers: {
                 'Content-Type': 'multipart/form-data'
               },
               withCredentials: true
+            }).then(response => {
+              directory.files.push(response.data)
+              this.newFileName = ''
+              this.newFile = null
+              this.showMessage(response.data.message || '文件上传成功');
+            }).catch(error => {
+              this.showMessage(error.message);
             })
-            directory.files.push(response.data)
-            this.newFileName = ''
-            this.newFile = null
-          } catch (error) {
+          } 
+          catch (error) {
             console.error('Error adding file:', error)
           }
         }
@@ -263,17 +267,13 @@
                   directory.files.splice(fileIndex, 1)
                 }
               })
-              this.errorMessage = response.data.message || '文件删除成功';
-              console.log(this.errorMessage)
-              this.showErrorModal = true;
+              this.showMessage(response.data.message || '文件删除成功');
             } else {
-              this.errorMessage = '文件删除失败:' + `${response.data.message}` + '，请稍后再试。';
-              this.showErrorModal = true;
+              this.showMessage('文件删除失败:' + `${response.data.message}` + '，请稍后再试。');
             }
           })
           .catch(error => {
-            this.errorMessage = error.message;
-            this.showErrorModal = true;
+            this.showMessage(error.message);
           })
           .finally(() => {
             this.showDeleteConfirmModal = false;

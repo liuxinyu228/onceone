@@ -44,7 +44,7 @@
             </td>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
               <button @click="openUserModal(user)" class="text-indigo-600 hover:text-indigo-900 mr-2">Edit</button>
-              <button @click="deleteUser(user.id)" class="text-red-600 hover:text-red-900">Delete</button>
+              <button @click="confirmDeleteUser(user.id)" class="text-red-600 hover:text-red-900">Delete</button>
             </td>
           </tr>
         </tbody>
@@ -88,16 +88,25 @@
       @close-user-modal="closeUserModal"
     />
   </div>
+
+  <optConfirm ref="optConfirmRef" />
 </template>
 
 <script>
 import UserModal from './UserModal.vue';
 import axios from 'axios';
 import config from '../../util/config'
+import optConfirm from '../optConfirm.vue'
+import { ref } from 'vue'
 
 export default {
   components: {
     UserModal,
+    optConfirm
+  },
+  setup() {
+    const optConfirmRef = ref(null); // 定义optConfirmRef
+    return { optConfirmRef }
   },
   data() {
     return {
@@ -200,6 +209,16 @@ export default {
         this.message = 'Error updating user: ' + error.message;
       }
     },
+    
+    async confirmDeleteUser(user_id) {
+      if (this.optConfirmRef) { // 使用this.optConfirmRef
+        const confirmed = await this.optConfirmRef.showConfirm('您确定要删除此用户吗？');
+        if (confirmed) {
+          this.deleteUser(user_id);
+        }
+      }
+    },
+
     async deleteUser(user_id) {
       try {
         const response = await axios.delete(`${config.getSetting('API_BASE_URL')}/api/deleteUser`, {

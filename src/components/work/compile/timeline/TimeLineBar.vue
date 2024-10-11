@@ -51,8 +51,8 @@
                   <p class="text-sm text-gray-500">{{ formatDate(event.date) }}</p>
                   <p class="mt-2 text-gray-700">{{ event.description }}</p>
                   <div v-if="event.attachment_path" class="mt-2">
-                    <a :href="`${API_BASE_URL}/api/timeline/${event.id}/download`" 
-                       class="text-sm text-indigo-600 hover:text-indigo-800 flex items-center">
+                    <a @click.prevent="download(event.id)"  
+                       class="text-sm text-indigo-600 hover:text-indigo-800 flex items-center cursor-pointer">
                       <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path>
                       </svg>
@@ -123,6 +123,11 @@
       console.error('Error fetching events:', error)
     }
   }
+
+  const download = (eventId) => {
+  const url = `${config.getSetting('API_BASE_URL')}/api/timeline/${eventId}/download`;
+  window.location.href = url;
+}
   
   onMounted(fetchEvents)
   

@@ -152,8 +152,33 @@ export default {
       this.currentPage = 1; // 应用筛选条件时，返回第一页
     },
     // 新增任务
-    addTask(newTask) {
-      this.tasks.unshift(newTask);
+    async addTask(newTask) {
+      try {
+        const response = await fetch(`${config.getSetting('API_BASE_URL')}/api/addUserWorkTask`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include', // 确保请求时携带凭证
+          body: JSON.stringify(newTask)
+        });
+
+        if (!response.ok) {
+          this.$refs.editModal.showAlertMessage('新增任务失败');
+          console.log('Failed to add user work task');
+        }
+
+        const result = await response.json();
+        newTask.id = result.id;
+        // 调用子组件的 showAlertMessage 方法
+        this.$refs.editModal.showAlertMessage('Task added successfully!');
+        // 更新任务列表
+        this.tasks.unshift(newTask);
+
+        
+      } catch (error) {
+        console.error('Error adding task:', error);
+      }
     }
   }
 };

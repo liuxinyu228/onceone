@@ -219,7 +219,14 @@ export default {
     async fetchTasks() {
       try {
         const response = await axios.get(`${config.getSetting('API_BASE_URL')}/api/taskTemplate/ALL`,{ withCredentials: true });
-        this.tasks = response.data;
+        const classificationMap = {
+          101: '新技术新业务安全评估',
+          102: '新业务涉诈风险评估'
+        };
+        this.tasks = response.data.map(task => ({
+          ...task,
+          work_classification: classificationMap[task.work_classification] || task.work_classification
+        }));
       } catch (error) {
         console.error('Error fetching tasks:', error);
         this.showMessage('Error fetching tasks');

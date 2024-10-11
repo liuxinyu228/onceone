@@ -124,6 +124,54 @@ class cardTask {
             id
         ], callback);
     }
+
+    static addUserWorkTask(groupId, AddtaskInfo, encryptedTaskInfo, callback) {
+        let systemInfo;
+        try {
+            systemInfo = JSON.parse(decrypt(encryptedTaskInfo));
+            console.log("taskInfo:", systemInfo);
+        } catch (error) {
+            return callback(new Error('Failed to decrypt system information'));
+        }
+
+        const getTaskIdQuery = `
+            SELECT DISTINCT ct.task_id
+            FROM card_task ct
+            JOIN card_system cs ON ct.task_id = cs.task_id
+            JOIN user_businesssystem_map ubm ON cs.system_id = ubm.businessSystem_id
+            JOIN card_users cu ON ubm.user_businessSystem_list_id = cu.businessSystemListID
+            WHERE cu.group_id = ?
+            AND cs.system_name = ?
+            AND ct.work_classification = ?;
+        `;
+
+        connection.query(getTaskIdQuery, [groupId, systemInfo.system_name, systemInfo.work_classification], (err, results) => {
+            if (err) {
+                return callback(err);
+            }
+
+            if (results.length === 0) {
+                return callback(new Error('No task_id found for the given parameters'));
+            }
+
+            const taskId = results[0].task_id;
+
+            const insertTaskQuery = `
+                INSERT INTO card_task 
+                (task_id, title, status, work_classification, description, guide, taskCategory) 
+                VALUES (?, ?, ?, ?, ?, ?, ?);
+            `;
+            const { title, status, description, guide, taskCategory } = AddtaskInfo;
+            connection.query(insertTaskQuery, [taskId, title, status, systemInfo.work_classification, description, guide, taskCategory], callback);
+        });
+    }
+
+    static getTaskByCategory(Category,callback){
+        const query = `
+            SELECT id, title ,description ,status FROM card_task WHERE taskCategory = ?;
+        `
+        connection.query(query, [Category], callback);
+    }
 }
 
 module.exports = { cardTaskTemplate, cardTask };
