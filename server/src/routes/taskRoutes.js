@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const db = require('../config/db'); 
 const { v4: uuidv4 } = require('uuid');
+const Util = require('../utils/util'); // 修改引用方式
 const {cardTaskTemplate,cardTask} = require("../models/cardTask");
-const { decrypt } = require('../utils/util');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
@@ -27,32 +27,114 @@ router.post('/taskTemplate', (req, res) => {
         if (err) {
             return res.status(500).json({ error: err.message });
         }
-        res.status(201).json({ message: 'Task template added successfully', taskId: result.insertId });
+
+        const taskTemplateId = result.insertId;
+
+        // 查询所有任务并按 task_id 分组
+        const selectTasksQuery = `
+            SELECT task_id, work_classification FROM card_task GROUP BY task_id;
+        `;
+
+        db.query(selectTasksQuery, (err, tasks) => {
+            if (err) {
+                return res.status(500).json({ error: err.message });
+            }
+
+            // 筛选需要新增任务的组
+            const taskValues = tasks
+                .filter(task => task.work_classification === taskInfo.work_classification)
+                .map(task => [
+                    '进行中',
+                    taskInfo.title,
+                    taskInfo.work_classification,
+                    taskInfo.description,
+                    taskInfo.guide,
+                    taskInfo.reportContent,
+                    taskInfo.materialPath,
+                    taskInfo.taskCategory,
+                    new Date(),
+                    new Date(),
+                    task.task_id, // 关联 task_id
+                    taskTemplateId // 关联 template_id
+                ]);
+
+            if (taskValues.length === 0) {
+                return res.status(200).json({ message: 'No tasks need to be added for this classification' });
+            }
+
+            // 为每一个符合条件的组新增任务
+            const insertTaskQuery = `
+                INSERT INTO card_task (status, title, work_classification, description, guide, reportContent, materialPath, taskCategory, created_at, updated_at, task_id, template_id)
+                VALUES ?;
+            `;
+
+            db.query(insertTaskQuery, [taskValues], (err) => {
+                if (err) {
+                    return res.status(500).json({ error: err.message });
+                }
+
+                res.status(201).json({ message: 'Task template and tasks added successfully', taskId: taskTemplateId });
+            });
+        });
     });
 });
 
 // 新增接口：更新任务模板
 router.post('/updateTaskTemplate/:id', (req, res) => {
-    const taskId = req.params.id;
+    const taskTemplateId = req.params.id;
     const updatedTaskInfo = req.body;
 
-    cardTaskTemplate.updateTaskById(taskId, updatedTaskInfo, (err) => {
+    cardTaskTemplate.updateTaskById(taskTemplateId, updatedTaskInfo, (err) => {
         if (err) {
             return res.status(500).json({ error: err.message });
         }
-        res.status(200).json({ message: 'Task template updated successfully' });
+
+        // 更新 card_task 表中与 template_id 相关的记录
+        const updateTaskQuery = `
+            UPDATE card_task
+            SET title = ?, description = ?, guide = ?, taskCategory = ?
+            WHERE template_id = ?;
+        `;
+
+        const updateValues = [
+            updatedTaskInfo.title,
+            updatedTaskInfo.description,
+            updatedTaskInfo.guide,
+            updatedTaskInfo.taskCategory,
+            taskTemplateId // 关联 template_id
+        ];
+
+        db.query(updateTaskQuery, updateValues, (err) => {
+            if (err) {
+                return res.status(500).json({ error: err.message });
+            }
+
+            res.status(200).json({ message: 'Task template and related tasks updated successfully' });
+        });
     });
 });
 
 // 新增接口：删除任务模板
-router.delete('/taskTemplate/:id', (req, res) => {
-    const taskId = req.params.id;
+router.delete('/taskTemplate/', (req, res) => {
+    const { taskTemplateId } = req.body;
 
-    cardTaskTemplate.deleteTaskById(taskId, (err) => {
+    // 先删除 card_task 中与 template_id 相关的记录
+    const deleteTasksQuery = `
+        DELETE FROM card_task WHERE template_id = ?;
+    `;
+
+    db.query(deleteTasksQuery, [taskTemplateId], (err) => {
         if (err) {
             return res.status(500).json({ error: err.message });
         }
-        res.status(200).json({ message: 'Task template deleted successfully' });
+
+        // 然后删除 card_task_template 中的记录
+        cardTaskTemplate.deleteTaskById(taskTemplateId, (err) => {
+            if (err) {
+                return res.status(500).json({ error: err.message });
+            }
+            res.status(200).json({ message: 'Task template and related tasks deleted successfully' });
+        });
     });
 });
 
@@ -66,11 +148,7 @@ router.get('/userWorks', (req, res) => {
         return res.status(401).json({ message: 'User not logged in' });
     }
 
-    // 获取分页参数，默认 limit 为 5，page 为 1
-    const limit = parseInt(req.query.limit) || 5;
-    const page = parseInt(req.query.page) || 1;
-    const offset = (page - 1) * limit;
-
+    // 查询总数和数据
     let query = `
         SELECT cs.system_name, cs.work_classification, cs.superintendent_name, cs.created_at
         FROM card_system cs
@@ -85,9 +163,6 @@ router.get('/userWorks', (req, res) => {
         queryParams.push(username);
     }
 
-    query += ' LIMIT ? OFFSET ?';
-    queryParams.push(limit, offset);
-
     console.log("userWorks sql:", query)
     console.log("userWorks parms:", queryParams)
 
@@ -97,8 +172,7 @@ router.get('/userWorks', (req, res) => {
         } else {
             res.status(200).json({
                 data: results,
-                limit: limit,
-                page: page
+                total: results.length
             });
         }
     });
@@ -115,8 +189,9 @@ router.get('/userWorkTasks', (req, res) => {
 
     // 从 Cookie 中获取加密的系统信息并解密
     const encryptedTaskInfo = req.cookies.taskInfo;
+    const decryptedTaskInfo = Util.decrypt(encryptedTaskInfo); // 修改为最新的引用方式
 
-    cardTask.getUserWorkTasks(groupId, encryptedTaskInfo, (err, results) => {
+    cardTask.getUserWorkTasks(groupId, decryptedTaskInfo, (err, results) => {
         if (err) {
             return res.status(500).json({ error: err.message });
         } else {
@@ -249,7 +324,7 @@ router.post('/addUserWork', (req, res) => {
 
                         // 在 card_task 表中新增对应记录，并关联 task_id
                         const insertTaskQuery = `
-                            INSERT INTO card_task (status, title, work_classification, description, guide, reportContent, materialPath, taskCategory, created_at, updated_at, task_id)
+                            INSERT INTO card_task (status, title, work_classification, description, guide, reportContent, materialPath, taskCategory, created_at, updated_at, task_id, template_id)
                             VALUES ?;
                         `;
 
@@ -264,7 +339,8 @@ router.post('/addUserWork', (req, res) => {
                             task.taskCategory,
                             new Date(),
                             new Date(),
-                            taskId // 关联 task_id
+                            taskId, // 关联 task_id
+                            task.id // 关联 template_id
                         ]);
 
                         db.query(insertTaskQuery, [taskValues], (err) => {
@@ -382,7 +458,7 @@ router.post('/updateTaskMaterial/:id', upload.single('file'), (req, res) => {
         }
 
         // 确定最终的上传目录
-        const { system_name, work_classification } = JSON.parse(decrypt(req.cookies.taskInfo));
+        const { system_name, work_classification } = JSON.parse(Util.decrypt(req.cookies.taskInfo));
         const decodedSystemName = Buffer.from(system_name, 'latin1').toString('utf8');
         const finalDir = path.join(__dirname, '../../uploads/works', decodedSystemName, work_classification, results[0].title);
         fs.mkdirSync(finalDir, { recursive: true });

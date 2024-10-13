@@ -3,13 +3,13 @@ const connection = require('../config/db');
 class cardUser {
   // 查询所有用户
   static getAllUsers(callback) {
-    const sql = 'SELECT id,username, status, email, is_admin ,phone, group_id, persona_id FROM card_users';
+    const sql = 'SELECT id, username, status, email, is_admin, phone, group_id, persona_id, DATE_FORMAT(created_at, "%Y-%m-%d") as created_at FROM card_users';
     connection.query(sql, callback);
   }
 
   // 根据ID查询用户
   static getUserById(id, callback) {
-    const sql = 'SELECT * FROM card_users WHERE user_id = ?';
+    const sql = 'SELECT * FROM card_users WHERE id = ?';
     connection.query(sql, [id], callback);
   }
 
@@ -36,7 +36,7 @@ class cardUser {
 
   // 删除用户
   static deleteUser(id, callback) {
-    const sql = 'DELETE FROM card_users WHERE id = ?';
+    const sql = 'UPDATE card_users SET status = 1 WHERE id = ?';
     connection.query(sql, [id], callback);
   }
 
@@ -53,6 +53,12 @@ class cardUser {
     };
     const sql = 'UPDATE card_users SET ? WHERE id = ?';
     connection.query(sql, [userStructure, id], callback);
+  }
+
+  // 修改用户密码
+  static updatePassword(id, newPassword, callback) {
+    const sql = 'UPDATE card_users SET password = ? WHERE id = ?';
+    connection.query(sql, [newPassword, id], callback);
   }
 }
 

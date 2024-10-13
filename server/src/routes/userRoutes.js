@@ -1,5 +1,4 @@
 const express = require('express');
-const session = require('express-session');
 const bodyParser = require('body-parser');
 const { v4: uuidv4 } = require('uuid');  // 用于生成唯一ID
 const router = express.Router();
@@ -163,9 +162,9 @@ router.post('/updateUser', (req, res) => {
 
 // 新增 /deleteUser 接口，删除用户
 router.delete('/deleteUser', (req, res) => {
-    const { user_id } = req.body;
+    const { id } = req.body;
 
-    cardUser.deleteUser(user_id, (err, result) => {
+    cardUser.deleteUser(id, (err, result) => {
         if (err) {
             return res.status(500).json({ message: 'Database error', error: err });
         }
@@ -198,6 +197,43 @@ router.get('/checkAdmin', (req, res) => {
     } else {
         res.json({ isAdmin: false });
     }
+});
+
+// 新增 /updatePassword 接口，修改用户密码
+router.post('/updatePassword', (req, res) => {
+    const { oldPassword, newPassword } = req.body;
+    const userId = req.session.userId;
+
+    console.log(userId, oldPassword, newPassword);
+
+    // 验证用户是否已登录
+    if (!req.session.userId || req.session.userId !== userId) {
+        return res.status(401).json({ message: 'User not logged in or unauthorized' });
+    }
+
+    // 查询数据库中的用户信息以验证旧密码
+    const query = 'SELECT id,password FROM card_users WHERE username = ?';
+    db.query(query, [userId], (err, results) => {
+        if (err) {
+            return res.status(500).json({ message: 'Database error', error: err });
+        }
+        if (results.length === 0 || results[0].password !== oldPassword) {
+            return res.status(401).json({ message: 'Old password is incorrect' });
+        }
+
+        const userId = results[0].id;
+
+        // 调用 cardUser 的 updatePassword 方法
+        cardUser.updatePassword(userId, newPassword, (err, result) => {
+            if (err) {
+                return res.status(500).json({ message: 'Database error', error: err });
+            }
+            if (result.affectedRows === 0) {
+                return res.status(404).json({ message: 'User not found' });
+            }
+            res.status(200).json({ message: 'Password updated successfully' });
+        });
+    });
 });
 
 module.exports = router;

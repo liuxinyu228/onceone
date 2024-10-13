@@ -77,7 +77,7 @@
   
         <!-- 分页 -->
         <div class="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6">
-          <div class="flex flex-1 justify-between sm:hidden">
+          <div class="flex flex-1 justify-between items-center">
             <button
               @click="prevPage"
               :disabled="currentPage === 1"
@@ -85,6 +85,9 @@
             >
               上一页
             </button>
+            <span class="mx-2 text-sm text-gray-700">
+              第 {{ currentPage }} 页，共 {{ totalPages }} 页
+            </span>
             <button
               @click="nextPage"
               :disabled="currentPage === totalPages"
@@ -92,51 +95,6 @@
             >
               下一页
             </button>
-          </div>
-          <div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-            <div>
-              <p class="text-sm text-gray-700">
-                显示第
-                <span class="font-medium">{{ (currentPage - 1) * itemsPerPage + 1 }}</span>
-                到
-                <span class="font-medium">{{ Math.min(currentPage * itemsPerPage, filteredTasks.length) }}</span>
-                条，共
-                <span class="font-medium">{{ filteredTasks.length }}</span>
-                条结果
-              </p>
-            </div>
-            <div>
-              <nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-                <button
-                  @click="prevPage"
-                  :disabled="currentPage === 1"
-                  class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0"
-                >
-                  <span class="sr-only">上一页</span>
-                  <ChevronLeftIcon class="h-5 w-5" aria-hidden="true" />
-                </button>
-                <button
-                  v-for="page in displayedPageNumbers"
-                  :key="page"
-                  @click="goToPage(page)"
-                  :class="[
-                    page === currentPage
-                      ? 'relative z-10 inline-flex items-center bg-indigo-600 px-4 py-2 text-sm font-semibold text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600'
-                      : 'relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0',
-                  ]"
-                >
-                  {{ page }}
-                </button>
-                <button
-                  @click="nextPage"
-                  :disabled="currentPage === totalPages"
-                  class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0"
-                >
-                  <span class="sr-only">下一页</span>
-                  <ChevronRightIcon class="h-5 w-5" aria-hidden="true" />
-                </button>
-              </nav>
-            </div>
           </div>
         </div>
   
@@ -169,11 +127,10 @@
 
       const fetchTasks = async () => {
         try {
-          const response = await fetch(`${config.getSetting('API_BASE_URL')}/api/userWorks?limit=${itemsPerPage}&page=${currentPage.value}`, {
+          const response = await fetch(`${config.getSetting('API_BASE_URL')}/api/userWorks`, {
             credentials: 'include' // 携带凭证
           });
           const data = await response.json();
-          data.total = data.data.length
 
           // 确保 data.data 和 data.total 存在
           if (data.data && data.total !== undefined) {
@@ -195,7 +152,7 @@
         return tasks.value.filter(task =>
           task.system_name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
           task.superintendent_name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-          task.workclassification.toLowerCase().includes(searchQuery.value.toLowerCase())
+          task.work_classification.toLowerCase().includes(searchQuery.value.toLowerCase())
         )
       })
 
@@ -205,41 +162,19 @@
         return filteredTasks.value.slice(start, end)
       })
 
-      const displayedPageNumbers = computed(() => {
-        const pageNumbers = []
-        for (let i = 1; i <= totalPages.value; i++) {
-          if (i === 1 || i === totalPages.value || (i >= currentPage.value - 1 && i <= currentPage.value + 1)) {
-            pageNumbers.push(i)
-          } else if (i === currentPage.value - 2 || i === currentPage.value + 2) {
-            pageNumbers.push('...')
-          }
-        }
-        return pageNumbers.filter((value, index, self) => self.indexOf(value) === index)
-      })
-
       const handleSearch = () => {
         currentPage.value = 1
-        fetchTasks()
       }
 
       const prevPage = () => {
         if (currentPage.value > 1) {
           currentPage.value--
-          fetchTasks()
         }
       }
 
       const nextPage = () => {
         if (currentPage.value < totalPages.value) {
           currentPage.value++
-          fetchTasks()
-        }
-      }
-
-      const goToPage = (page) => {
-        if (page !== '...') {
-          currentPage.value = page
-          fetchTasks()
         }
       }
 
@@ -251,11 +186,9 @@
         filteredTasks,
         totalPages,
         displayedTasks,
-        displayedPageNumbers,
         handleSearch,
         prevPage,
-        nextPage,
-        goToPage
+        nextPage
       }
     },
     methods: {

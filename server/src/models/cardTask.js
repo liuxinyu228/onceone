@@ -60,10 +60,10 @@ class cardTask {
         this.workClassification = workClassification;
     }
 
-    static getUserWorkTasks(groupId, encryptedTaskInfo, callback) {
+    static getUserWorkTasks(groupId, decryptedTaskInfo, callback) {
         let systemInfo;
         try {
-            systemInfo = JSON.parse(decrypt(encryptedTaskInfo));
+            systemInfo = JSON.parse(decryptedTaskInfo);
             console.log("taskInfo:", systemInfo);
         } catch (error) {
             return callback(new Error('Failed to decrypt system information'));

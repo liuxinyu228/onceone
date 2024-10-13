@@ -77,6 +77,10 @@ export default {
     
     // 当前页的任务数据
     filteredTasks() {
+      if (this.tasks.length === 0) {
+        return [];
+      }
+      
       const start = (this.currentPage - 1) * this.tasksPerPage;
       const end = start + this.tasksPerPage;
 

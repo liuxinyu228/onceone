@@ -51,7 +51,6 @@ export default {
   props: {
     showTaskModal: Boolean,
     editingTask: Object,
-    taskFields: Array
   },
   data() {
     return {
@@ -59,11 +58,15 @@ export default {
     }
   },
   watch: {
+    // 监听 editingTask 属性的变化
     editingTask: {
+      // 当 editingTask 发生变化时，更新 localEditingTask
       handler(newVal) {
         this.localEditingTask = { ...newVal }
       },
+      // 深度监听对象内部的变化
       deep: true,
+      // 立即执行 handler 函数
       immediate: true
     }
   },

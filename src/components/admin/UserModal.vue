@@ -133,11 +133,11 @@ export default {
         updatedUser.id = this.localEditingUser.id;
       }
 
-      this.$emit('save-user', updatedUser);
+      this.$emit('save', updatedUser);
       this.closeUserModal();
     },
     closeUserModal() {
-      this.$emit('close-user-modal');
+      this.$emit('close');
     },
   },
 };
