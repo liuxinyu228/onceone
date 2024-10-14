@@ -247,7 +247,7 @@
 
   const downloadFile = (fileId) => {
     const link = document.createElement('a')
-    link.href = `${config.getSetting('API_BASE_URL')}/api/filemaager/files/${fileId}/download`
+    link.href = `${config.getSetting('API_BASE_URL')}/api/filemanager/files/${fileId}/download`
     link.setAttribute('download', '')
     document.body.appendChild(link)
     link.click()

@@ -125,7 +125,7 @@
   }
 
   const download = (eventId) => {
-  const url = `${config.getSetting('API_BASE_URL')}/api/timeline/${eventId}/download`;
+  const url = `${config.getSetting('API_BASE_URL')}/api/filemanager/timeline/${eventId}/download`;
   window.location.href = url;
 }
   

@@ -31,7 +31,15 @@ router.get('/getUserWorks', async (req, res) => {
             WHERE 
                 card_users.persona_id = 606
             GROUP BY 
-                card_system.system_name, card_users.username, card_system.end_at, card_system.work_classification
+                card_system.system_id, 
+                card_system.system_name, 
+                card_system.superintendent_name, 
+                card_system.superintendent_phone, 
+                card_system.superintendent_email,
+                card_users.username, 
+                card_users.id, 
+                card_system.end_at, 
+                card_system.work_classification
         `, (error, results) => {
             if (error) {
                 console.error('Error fetching evaluations:', error);
