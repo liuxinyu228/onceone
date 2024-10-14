@@ -41,7 +41,11 @@
         <tbody>
           <tr v-for="(item, index) in paginatedItems" :key="item.id" 
               :class="index % 2 === 0 ? 'bg-white' : 'bg-gray-50'">
-            <td class="p-2 border-b">{{ item.title }}</td>
+            <td class="p-2 border-b">
+              <span class="block truncate w-40"> 
+                {{ item.title.length > 30 ? item.title.slice(0, 30) + '...' : item.title }}
+              </span>
+            </td>
             <td class="p-2 border-b">{{ item.work_classification }}</td>
             <td class="p-2 border-b">
               <span class="block truncate w-40">
