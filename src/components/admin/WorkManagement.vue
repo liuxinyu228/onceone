@@ -2,7 +2,7 @@
     <div class="container mx-auto p-4 h-screen flex flex-col">
       <div class="flex flex-col md:flex-row gap-4 mb-4">
         <!-- 新增任务框 -->
-        <div class="md:w-1/2 bg-white p-4 rounded shadow">
+        <div class="w-full md:w-1/2 bg-white p-4 rounded shadow md:block hidden">
           <div class="flex justify-between items-center mb-4">
             <h2 class="text-xl font-bold">任务列表</h2>
             <button @click="showModal = true" class="bg-blue-500 text-white p-2 rounded hover:bg-blue-600">
@@ -30,7 +30,7 @@
         </div>
   
         <!-- 任务详情展示区 -->
-        <div class="md:w-1/2 bg-white p-4 rounded shadow">
+        <div class="w-full md:w-1/2 bg-white p-4 rounded shadow">
           <h2 class="text-xl font-bold mb-4">任务详情</h2>
           <div class="overflow-y-auto max-h-[35vh]">
             <div v-for="task in tasks" :key="task.id" class="mb-6 p-4 bg-gray-100 rounded">
@@ -53,7 +53,7 @@
       </div>
   
       <!-- 协助任务区 -->
-      <div class="flex-grow overflow-y-auto">
+      <div class="flex-grow overflow-y-auto md:block hidden">
         <h2 class="text-xl font-bold mb-4">协助任务</h2>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div v-for="task in assistTasks" :key="task.id" class="bg-white p-4 rounded shadow">
