@@ -149,7 +149,7 @@
 
   const fetchDirectories = async () => {
     try {
-      const response = await axios.get(`${config.getSetting('API_BASE_URL')}/api/directories`, {
+      const response = await axios.get(`${config.getSetting('API_BASE_URL')}/api/filemanager/directories`, {
         withCredentials: true
       })
       directories.value = response.data
@@ -160,7 +160,7 @@
 
   const createDirectory = () => {
     if (newDirectoryName.value.trim()) {
-      axios.post(`${config.getSetting('API_BASE_URL')}/api/directories`, {
+      axios.post(`${config.getSetting('API_BASE_URL')}/api/filemanager/directories`, {
         name: newDirectoryName.value.trim()
       }, {
         withCredentials: true
@@ -186,7 +186,7 @@
       formData.append('directory_id', directory.id)
 
       try {
-        await axios.post(`${config.getSetting('API_BASE_URL')}/api/files`, formData, {
+        await axios.post(`${config.getSetting('API_BASE_URL')}/api/filemanager/files`, formData, {
           headers: {
             'Content-Type': 'multipart/form-data'
           },
@@ -219,7 +219,7 @@
 
   const confirmDeleteFile = () => {
     if (fileIdToDelete.value !== null) {
-      axios.delete(`${config.getSetting('API_BASE_URL')}/api/files/${fileIdToDelete.value}`, {
+      axios.delete(`${config.getSetting('API_BASE_URL')}/api/filemanager/files/${fileIdToDelete.value}`, {
         withCredentials: true
       })
       .then(response => {
@@ -247,7 +247,7 @@
 
   const downloadFile = (fileId) => {
     const link = document.createElement('a')
-    link.href = `${config.getSetting('API_BASE_URL')}/api/files/${fileId}/download`
+    link.href = `${config.getSetting('API_BASE_URL')}/api/filemaager/files/${fileId}/download`
     link.setAttribute('download', '')
     document.body.appendChild(link)
     link.click()

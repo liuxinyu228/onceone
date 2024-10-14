@@ -100,7 +100,7 @@
     }
 
     try {
-      const response = await axios.post(`${config.getSetting('API_BASE_URL')}/api/timeline`, formData, {
+      const response = await axios.post(`${config.getSetting('API_BASE_URL')}/api/filemanager/timeline`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         },
@@ -117,7 +117,7 @@
   
   const fetchEvents = async () => {
     try {
-      const response = await axios.get(`${config.getSetting('API_BASE_URL')}/api/timeline`, { withCredentials: true })
+      const response = await axios.get(`${config.getSetting('API_BASE_URL')}/api/filemanager/timeline`, { withCredentials: true })
       events.value = response.data
     } catch (error) {
       console.error('Error fetching events:', error)

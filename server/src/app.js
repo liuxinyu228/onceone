@@ -51,6 +51,7 @@ function isPersona(req, res, next) {
   // get /timeline/:id/download接口不需要权限
   const excludedPaths = ['/timeline'];
   const downloadPathRegex = /^\/timeline\/[^/]+\/download$/;
+  console.log(req.path)
 
   if (excludedPaths.includes(req.path) && req.method === 'GET') {
     return next();
@@ -68,9 +69,8 @@ function isPersona(req, res, next) {
 }
 
 // 使用用户路由
-app.use('/api', isLoggedIn, userRoutes);
-app.use('/api', isLoggedIn, taskRoutes);
-app.use('/api', isLoggedIn, isPersona, fileManagerRoutes);
+app.use('/api', isLoggedIn, [userRoutes, taskRoutes]);
+app.use('/api/filemanager', isLoggedIn, isPersona, fileManagerRoutes);
 app.use('/api/admin', isLoggedIn, isAdmin, adminRoutes);
 
 module.exports = app;
