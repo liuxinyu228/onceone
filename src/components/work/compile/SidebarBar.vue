@@ -14,7 +14,7 @@
                 事件时间线
               </router-link>
             </li>
-            <li class="mb-2">
+            <li v-if="userInfo.personaId !== 707" class="mb-2">
               <router-link to="/compile/filemanager" class="text-gray-500" active-class="text-blue-600" exact-active-class="text-blue-600">
                 参考文件管理
               </router-link>
@@ -29,13 +29,12 @@
     </div>
 </template>
 
-<script>
+<script setup>
 import UserInfo from '../../UserInfo.vue'
+import Cookies from 'js-cookie'
+import { decrypt } from '../../../util/util.js'
 
-export default{
-  components:{
-    UserInfo,
-  }
-}
+
+const userInfo = JSON.parse(decrypt(Cookies.get('userInfo')))
 
 </script>

@@ -134,7 +134,7 @@ const items = ref([]) // 初始化为空数组
 // 新增：根据接口获取数据
 const fetchItems = async () => {
   try {
-    const response = await axios.get(`${config.getSetting('API_BASE_URL')}/api/getAllUsers`, {withCredentials:true})
+    const response = await axios.get(`${config.getSetting('API_BASE_URL')}/api/admin/getAllUsers`, {withCredentials:true})
     if (response.status == 200){
       items.value = response.data // 假设返回的数据格式正确
     }else{
@@ -183,7 +183,7 @@ const editItemShowModal = (item) => {
 const deleteItem = async (id) => {
   // Implement delete item logic
   try {
-        const response = await axios.delete(`${config.getSetting('API_BASE_URL')}/api/deleteUser/`, {
+        const response = await axios.delete(`${config.getSetting('API_BASE_URL')}/api/admin/deleteUser/`, {
           data: { id },
           withCredentials: true
         });
@@ -218,7 +218,7 @@ const saveTask = async (updatedTask) => {
 
 const addItemSubmit =async (User) => {
   try {
-  const response = await axios.post(`${config.getSetting("API_BASE_URL")}/api/addUser`,
+  const response = await axios.post(`${config.getSetting("API_BASE_URL")}/api/admin/addUser`,
   User,
   {withCredentials: true}
   );
@@ -233,7 +233,7 @@ const addItemSubmit =async (User) => {
 
 const updateItemSubmit = async (updatedTask) =>{
   try {
-  const response = await axios.post(`${config.getSetting("API_BASE_URL")}/api/updateUser`,
+  const response = await axios.post(`${config.getSetting("API_BASE_URL")}/api/admin/updateUser`,
   updatedTask,
   {withCredentials: true}
   );

@@ -45,10 +45,32 @@ function isAdmin(req, res, next) {
   }
 }
 
+function isPersona(req, res, next) {
+  // 606 是评估人员权限
+  // get /timeline接口不需要权限
+  // get /timeline/:id/download接口不需要权限
+  const excludedPaths = ['/timeline'];
+  const downloadPathRegex = /^\/timeline\/[^/]+\/download$/;
+
+  if (excludedPaths.includes(req.path) && req.method === 'GET') {
+    return next();
+  }
+
+  if (downloadPathRegex.test(req.path) && req.method === 'GET') {
+    return next();
+  }
+
+  if (req.session && req.session.personaId === 606) {
+    return next();
+  } else {
+    return res.status(403).json({ status: false, message: '需要评估人员权限' });
+  }
+}
+
 // 使用用户路由
 app.use('/api', isLoggedIn, userRoutes);
 app.use('/api', isLoggedIn, taskRoutes);
-app.use('/api', isLoggedIn, fileManagerRoutes);
+app.use('/api', isLoggedIn, isPersona, fileManagerRoutes);
 app.use('/api/admin', isLoggedIn, isAdmin, adminRoutes);
 
 module.exports = app;

@@ -3,140 +3,11 @@ const router = express.Router();
 const db = require('../config/db'); 
 const { v4: uuidv4 } = require('uuid');
 const Util = require('../utils/util'); // 修改引用方式
-const {cardTaskTemplate,cardTask} = require("../models/cardTask");
+const {cardTask} = require("../models/cardTask");
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 
-// 根据工作类型获取所有任务模板
-router.get('/taskTemplate/:taskType', (req, res) => {
-    cardTaskTemplate.getAllTaskByType(req.params.taskType, (err, results) => {
-        if (err) {
-            res.status(500).json({ error: err.message });
-        } else {
-            res.status(200).json(results);
-        }
-    });
-});
-
-// 新增接口：新增任务模板
-router.post('/taskTemplate', (req, res) => {
-    const taskInfo = req.body;
-
-    cardTaskTemplate.addTask(taskInfo, (err, result) => {
-        if (err) {
-            return res.status(500).json({ error: err.message });
-        }
-
-        const taskTemplateId = result.insertId;
-
-        // 查询所有任务并按 task_id 分组，确保不违反 SQL 的 only_full_group_by 模式
-        const selectTasksQuery = `
-            SELECT task_id, MAX(work_classification) AS work_classification FROM card_task GROUP BY task_id;
-        `;
-
-        db.query(selectTasksQuery, (err, tasks) => {
-            if (err) {
-                return res.status(500).json({ error: err.message });
-            }
-
-            // 筛选需要新增任务的组
-            const taskValues = tasks
-                .filter(task => task.work_classification === taskInfo.work_classification)
-                .map(task => [
-                    '进行中',
-                    taskInfo.title,
-                    taskInfo.work_classification,
-                    taskInfo.description,
-                    taskInfo.guide,
-                    taskInfo.reportContent,
-                    taskInfo.materialPath,
-                    taskInfo.taskCategory,
-                    new Date(),
-                    new Date(),
-                    task.task_id, // 关联 task_id
-                    taskTemplateId // 关联 template_id
-                ]);
-
-            if (taskValues.length === 0) {
-                return res.status(201).json({ message: '首次任务模板添加成功' });
-            }
-
-            // 为每一个符合条件的组新增任务
-            const insertTaskQuery = `
-                INSERT INTO card_task (status, title, work_classification, description, guide, reportContent, materialPath, taskCategory, created_at, updated_at, task_id, template_id)
-                VALUES ?;
-            `;
-
-            db.query(insertTaskQuery, [taskValues], (err) => {
-                if (err) {
-                    return res.status(500).json({ error: err.message });
-                }
-
-                res.status(201).json({ message: '任务模板添加成功', taskId: taskTemplateId });
-            });
-        });
-    });
-});
-
-// 新增接口：更新任务模板
-router.post('/updateTaskTemplate/:id', (req, res) => {
-    const taskTemplateId = req.params.id;
-    const updatedTaskInfo = req.body;
-
-    cardTaskTemplate.updateTaskById(taskTemplateId, updatedTaskInfo, (err) => {
-        if (err) {
-            return res.status(500).json({ error: err.message });
-        }
-
-        // 更新 card_task 表中与 template_id 相关的记录
-        const updateTaskQuery = `
-            UPDATE card_task
-            SET title = ?, description = ?, guide = ?, taskCategory = ?
-            WHERE template_id = ?;
-        `;
-
-        const updateValues = [
-            updatedTaskInfo.title,
-            updatedTaskInfo.description,
-            updatedTaskInfo.guide,
-            updatedTaskInfo.taskCategory,
-            taskTemplateId // 关联 template_id
-        ];
-
-        db.query(updateTaskQuery, updateValues, (err) => {
-            if (err) {
-                return res.status(500).json({ error: err.message });
-            }
-
-            res.status(200).json({ message: 'Task template and related tasks updated successfully' });
-        });
-    });
-});
-
-// 新增接口：删除任务模板
-router.delete('/taskTemplate/', (req, res) => {
-    const { taskTemplateId } = req.body;
-
-    // 先删除 card_task 中与 template_id 相关的记录
-    const deleteTasksQuery = `
-        DELETE FROM card_task WHERE template_id = ?;
-    `;
-
-    db.query(deleteTasksQuery, [taskTemplateId], (err) => {
-        if (err) {
-            return res.status(500).json({ error: err.message });
-        }
-
-        // 然后删除 card_task_template 中的记录
-        cardTaskTemplate.deleteTaskById(taskTemplateId, (err) => {
-            if (err) {
-                return res.status(500).json({ error: err.message });
-            }
-            res.status(200).json({ message: 'Task template and related tasks deleted successfully' });
-        });
-    });
-});
 
 // 新增接口：查询用户下所有评估业务系统
 router.get('/userWorks', (req, res) => { 
@@ -220,7 +91,7 @@ router.post('/addUserWorkTask', (req, res) => {
     const username = req.session.userId; // 从 session 中获取用户名
     const groupId = req.session.groupId; // 从 session 中获取 group_id
     const personaId = req.session.personaId; // 从 session 中获取 persona_id
-    
+
     if (!username) {
         return res.status(401).json({ message: 'User not logged in' });
     }
