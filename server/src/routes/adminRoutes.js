@@ -242,14 +242,15 @@ router.delete('/deleteUserWork', (req, res) => {
 // 新增接口：修改评估系统
 router.put('/updateUserWork', (req, res) => {
     const { systemId, userId, businessSystemName, superintendentName, superintendentPhone, superintendentEmail, workClassification, endAt } = req.body;
-
+    let changeuserBusinessSystemListID = ""
     if (!systemId || !userId) {
         return res.status(400).json({ error: 'System ID and User ID are required' });
     }
+    console.log(systemId, userId, businessSystemName)
 
     // 查询当前 system_id 所属的用户
     const checkUserQuery = `
-        SELECT cu.id as currentUserId
+        SELECT cu.id as currentUserId, cu.businessSystemListID
         FROM card_system cs
         JOIN user_businesssystem_map ubm ON cs.system_id = ubm.businessSystem_id
         JOIN card_users cu ON ubm.user_businessSystem_list_id = cu.businessSystemListID
@@ -267,34 +268,63 @@ router.put('/updateUserWork', (req, res) => {
 
         const currentUserId = results[0].currentUserId;
 
-        // 如果用户不同，更新 user_businesssystem_map 表
-        if (currentUserId !== userId) {
-            const updateUserSystemMapQuery = `
-                UPDATE user_businesssystem_map
-                SET user_businessSystem_list_id = (SELECT businessSystemListID FROM card_users WHERE id = ?)
-                WHERE businessSystem_id = ?;
-            `;
-
-            db.query(updateUserSystemMapQuery, [userId, systemId], (err) => {
-                if (err) {
-                    return res.status(500).json({ error: err.message });
-                }
-            });
-        }
-
-        // 更新 card_system 表中的信息
-        const updateSystemQuery = `
-            UPDATE card_system
-            SET system_name = ?, superintendent_name = ?, superintendent_phone = ?, superintendent_email = ?, work_classification = ?, end_at = ?
-            WHERE system_id = ?;
+        // 查询并检查 userId 对应的 businessSystemListID 是否为空
+        const checkchangeUserBusinessSystemListIDQuery = `
+            SELECT businessSystemListID FROM card_users WHERE id = ?;
         `;
 
-        db.query(updateSystemQuery, [businessSystemName, superintendentName, superintendentPhone, superintendentEmail, workClassification, endAt, systemId], (err) => {
+        db.query(checkchangeUserBusinessSystemListIDQuery, [userId], (err, userResults) => {
             if (err) {
                 return res.status(500).json({ error: err.message });
             }
 
-            res.status(200).json({ message: 'Evaluation system updated successfully' });
+            if (userResults.length > 0 && !userResults[0].businessSystemListID) {
+                changeuserBusinessSystemListID = uuidv4();
+                const updateUserBusinessSystemListIDQuery = `
+                    UPDATE card_users
+                    SET businessSystemListID = ?
+                    WHERE id = ?;
+                `;
+                db.query(updateUserBusinessSystemListIDQuery, [changeuserBusinessSystemListID, userId], (err) => {
+                    if (err) {
+                        return res.status(500).json({ error: err.message });
+                    }
+                });
+            }else{
+                changeuserBusinessSystemListID = userResults[0].businessSystemListID
+            }
+
+            // 如果用户不同，更新 user_businesssystem_map 表
+            if (currentUserId !== userId) {
+                const updateUserSystemMapQuery = `
+                    UPDATE user_businesssystem_map
+                    SET 
+                        user_businessSystem_list_id = ?,
+                        group_id = (SELECT group_id FROM card_users WHERE id = ?)
+                    WHERE businessSystem_id = ?;
+                `;
+
+                db.query(updateUserSystemMapQuery, [changeuserBusinessSystemListID, userId, systemId], (err) => {
+                    if (err) {
+                        return res.status(500).json({ error: err.message });
+                    }
+                });
+            }
+
+            // 更新 card_system 表中的信息
+            const updateSystemQuery = `
+                UPDATE card_system
+                SET system_name = ?, superintendent_name = ?, superintendent_phone = ?, superintendent_email = ?, work_classification = ?, end_at = ?
+                WHERE system_id = ?;
+            `;
+
+            db.query(updateSystemQuery, [businessSystemName, superintendentName, superintendentPhone, superintendentEmail, workClassification, endAt, systemId], (err) => {
+                if (err) {
+                    return res.status(500).json({ error: err.message });
+                }
+
+                res.status(200).json({ message: 'Evaluation system updated successfully' });
+            });
         });
     });
 });
