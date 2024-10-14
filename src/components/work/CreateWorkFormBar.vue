@@ -155,7 +155,7 @@
             credentials: 'include', // 携带凭证
             body: JSON.stringify(this.form)
           });
-
+          const data = await response.json();
           if (response.ok) {
             console.log('提交的表单数据:', this.form);
             const taskInfo = {
@@ -167,8 +167,8 @@
               path: '/compile',
             });
           } else if (response.status === 400) {
-            this.modalMessage = '评估任务已存在';
-            this.modalType = 'exists';
+            this.modalMessage = data.message;
+            this.modalType = 'error';
             this.showModal = true;
           } else {
             const errorData = await response.json();

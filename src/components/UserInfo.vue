@@ -37,6 +37,7 @@
 import axios from 'axios';
 import config from '../util/config'
 import showMessage from './showMessage.vue'
+import Cookies from 'js-cookie'; // 引入 js-cookie 库
 
 export default {
   props: {
@@ -74,6 +75,7 @@ export default {
       axios.post(`${config.getSetting('API_BASE_URL')}/api/logout`, {}, { withCredentials: true })
         .then(response => {
           console.log(response.data.message);
+          Cookies.remove('taskInfo'); // 删除 userId 的 Cookie
           this.$router.push('/login');
         })
         .catch(error => {

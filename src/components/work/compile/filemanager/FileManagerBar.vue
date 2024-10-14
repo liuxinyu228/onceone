@@ -90,41 +90,6 @@
       </div>
     </div>
 
-    <!-- 弹窗 -->
-  <div v-if="showErrorModal" class="fixed z-10 inset-0 overflow-y-auto">
-    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-      <div class="fixed inset-0 transition-opacity" aria-hidden="true">
-        <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
-      </div>
-      <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-      <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-        <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-          <div class="sm:flex sm:items-start">
-            <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
-              <svg class="h-6 w-6 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </div>
-            <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-              <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-title">
-                操作详情
-              </h3>
-              <div class="mt-2">
-                <p class="text-sm text-gray-500">
-                  {{ errorMessage }}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-          <button @click="showErrorModal = false" type="button" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm">
-            关闭
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
 
   <!-- 删除确认弹窗 -->
   <div v-if="showDeleteConfirmModal" class="fixed z-10 inset-0 overflow-y-auto">
@@ -164,134 +129,132 @@
       </div>
     </div>
   </div>
+
+  <showMessage ref="showMessageRef"/>
   </template>
   
-  <script>
+  <script setup>
+  import { ref, onMounted } from 'vue'
   import axios from 'axios'
   import config from '../../../../util/config'
+  import showMessage from '../../../showMessage.vue'
 
-  export default {
-    data() {
-      return {
-        directories: [],
-        newDirectoryName: '',
-        newFileName: '',
-        newFile: null,
-        showErrorModal: false,
-        errorMessage: '',
-        showDeleteConfirmModal: false,
-        fileIdToDelete: null
-      }
-    },
-    methods: {
-      showMessage(message) {
-        this.errorMessage = message;
-        this.showErrorModal = true;
-      },
-      async fetchDirectories() {
-        try {
-          const response = await axios.get(`${config.getSetting('API_BASE_URL')}/api/directories`, {
-            withCredentials: true
-          })
-          this.directories = response.data
-        } catch (error) {
-          console.error('Error fetching directories:', error)
-        }
-      },
-      createDirectory() {
-        if (this.newDirectoryName.trim()) {
-          axios.post(`${config.getSetting('API_BASE_URL')}/api/directories`, {
-            name: this.newDirectoryName.trim()
-          }, {
-            withCredentials: true
-          })
-          .then(response => {
-            if (response.data.status) {
-              this.directories.push(response.data.directory)
-              this.newDirectoryName = ''
-            } else {
-              this.showMessage(response.data.message || '新增目录失败');
-            }
-          })
-          .catch(err => {
-            this.showMessage(err.message);
-          })
-        }
-      },
-      async addFile(directory) {
-        if (this.newFile) {
-          const formData = new FormData()
-          formData.append('file', this.newFile)
-          formData.append('directory_id', directory.id)
+  const directories = ref([])
+  const newDirectoryName = ref('')
+  const newFile = ref(null)
+  const showMessageRef = ref(null)
+  const showDeleteConfirmModal = ref(false)
+  const fileIdToDelete = ref(null)
 
-          try {
-            await axios.post(`${config.getSetting('API_BASE_URL')}/api/files`, formData, {
-              headers: {
-                'Content-Type': 'multipart/form-data'
-              },
-              withCredentials: true
-            }).then(response => {
-              directory.files.push(response.data)
-              this.newFileName = ''
-              this.newFile = null
-              this.showMessage(response.data.message || '文件上传成功');
-            }).catch(error => {
-              this.showMessage(error.message);
-            })
-          } 
-          catch (error) {
-            console.error('Error adding file:', error)
-          }
-        }
-      },
-      toggleDirectory(index) {
-        this.directories[index].isOpen = !this.directories[index].isOpen
-      },
-      handleFileChange(e) {
-        this.newFile = e.target.files[0]
-      },
-      deleteFile(fileId) {
-        this.fileIdToDelete = fileId;
-        this.showDeleteConfirmModal = true;
-      },
-      confirmDeleteFile() {
-        if (this.fileIdToDelete !== null) {
-          axios.delete(`${config.getSetting('API_BASE_URL')}/api/files/${this.fileIdToDelete}`, {
-            withCredentials: true
-          })
-          .then(response => {
-            if(response.data.success){
-              this.directories.forEach(directory => {
-                const fileIndex = directory.files.findIndex(file => file.id === this.fileIdToDelete)
-                if (fileIndex !== -1) {
-                  directory.files.splice(fileIndex, 1)
-                }
-              })
-              this.showMessage(response.data.message || '文件删除成功');
-            } else {
-              this.showMessage('文件删除失败:' + `${response.data.message}` + '，请稍后再试。');
-            }
-          })
-          .catch(error => {
-            this.showMessage(error.message);
-          })
-          .finally(() => {
-            this.showDeleteConfirmModal = false;
-            this.fileIdToDelete = null;
-          });
-        }
-      },
-      downloadFile(fileId) {
-        const link = document.createElement('a');
-        link.href = `${config.getSetting('API_BASE_URL')}/api/files/${fileId}/download`;
-        link.setAttribute('download', '');
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
-    },
-    mounted() {
-      this.fetchDirectories()
+
+  const fetchDirectories = async () => {
+    try {
+      const response = await axios.get(`${config.getSetting('API_BASE_URL')}/api/directories`, {
+        withCredentials: true
+      })
+      directories.value = response.data
+    } catch (error) {
+      showMessageRef.value.showMessage('Error fetching directories:', error)
     }
   }
+
+  const createDirectory = () => {
+    if (newDirectoryName.value.trim()) {
+      axios.post(`${config.getSetting('API_BASE_URL')}/api/directories`, {
+        name: newDirectoryName.value.trim()
+      }, {
+        withCredentials: true
+      })
+      .then(response => {
+        if (response.data.status) {
+          directories.value.push(response.data.directory)
+          newDirectoryName.value = ''
+        } else {
+          showMessageRef.value.showMessage(response.data.message || '新增目录失败')
+        }
+      })
+      .catch(err => {
+        showMessage(err.message)
+      })
+    }
+  }
+
+  const addFile = async (directory) => {
+    if (newFile.value) {
+      const formData = new FormData()
+      formData.append('file', newFile.value)
+      formData.append('directory_id', directory.id)
+
+      try {
+        await axios.post(`${config.getSetting('API_BASE_URL')}/api/files`, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          },
+          withCredentials: true
+        }).then(response => {
+          directory.files.push(response.data)
+          newFile.value = null
+          showMessageRef.value.showMessage(response.data.message || '文件上传成功')
+        }).catch(error => {
+          showMessageRef.value.showMessage(error.message)
+        })
+      } catch (error) {
+        console.error('Error adding file:', error)
+      }
+    }
+  }
+
+  const toggleDirectory = (index) => {
+    directories.value[index].isOpen = !directories.value[index].isOpen
+  }
+
+  const handleFileChange = (e) => {
+    newFile.value = e.target.files[0]
+  }
+
+  const deleteFile = (fileId) => {
+    fileIdToDelete.value = fileId
+    showDeleteConfirmModal.value = true
+  }
+
+  const confirmDeleteFile = () => {
+    if (fileIdToDelete.value !== null) {
+      axios.delete(`${config.getSetting('API_BASE_URL')}/api/files/${fileIdToDelete.value}`, {
+        withCredentials: true
+      })
+      .then(response => {
+        if(response.data.success){
+          directories.value.forEach(directory => {
+            const fileIndex = directory.files.findIndex(file => file.id === fileIdToDelete.value)
+            if (fileIndex !== -1) {
+              directory.files.splice(fileIndex, 1)
+            }
+          })
+          showMessageRef.value.showMessage(response.data.message || '文件删除成功')
+        } else {
+          showMessageRef.value.showMessage('文件删除失败:' + `${response.data.message}` + '，请稍后再试。')
+        }
+      })
+      .catch(error => {
+        showMessageRef.value.showMessage(error.message)
+      })
+      .finally(() => {
+        showDeleteConfirmModal.value = false
+        fileIdToDelete.value = null
+      })
+    }
+  }
+
+  const downloadFile = (fileId) => {
+    const link = document.createElement('a')
+    link.href = `${config.getSetting('API_BASE_URL')}/api/files/${fileId}/download`
+    link.setAttribute('download', '')
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  onMounted(() => {
+    fetchDirectories()
+  })
   </script>

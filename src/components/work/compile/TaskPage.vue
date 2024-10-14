@@ -5,7 +5,7 @@
     <div class="flex-1 p-6">
       <div class="flex justify-between mb-4">
         <BreadcrumbBar />
-        <button class="btn btn-primary" @click="openNewTaskModal">+ 新建任务</button>
+        <button v-if="shouldShowNewTaskModal()" class="btn btn-primary" @click="openNewTaskModal">+ 新建任务</button>
       </div>
       <div class="flex justify-between items-center mb-4">
         <FilterBar @filter-tasks="handleFilterTasks" @apply-filters="applyFilters" />
@@ -21,6 +21,8 @@ import BreadcrumbBar from './BreadcrumbBar.vue';
 import FilterBar from './FilterBar.vue';
 import TaskList from './TaskList.vue';
 import NewTaskModal from './NewTaskModal.vue';
+import Cookies from 'js-cookie'; // 导入 js-cookie 库
+import { decrypt } from '../../../util/util'; // 导入解密函数
 
 export default {
   components: {
@@ -35,6 +37,11 @@ export default {
     };
   },
   methods: {
+    shouldShowNewTaskModal() {
+      const userInfo = JSON.parse(decrypt(Cookies.get('userInfo'))); // 解密并解析 userInfo
+      const personaId = userInfo.personaId; // 使用 js-cookie 获取 personaId
+      return personaId !== 707; // 如果 personaId 不为 707，则显示 NewTaskModal
+    },
     handleFilterTasks(filter) {
       this.$refs.taskList.handleFilterTasks(filter);
     },
@@ -43,6 +50,7 @@ export default {
     },
     openNewTaskModal() {
       this.isNewTaskModalOpen = true;
+      console.log('isNewTaskModalOpen:', this.isNewTaskModalOpen);
     },
     closeNewTaskModal() {
       this.isNewTaskModalOpen = false;

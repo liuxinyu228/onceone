@@ -12,6 +12,8 @@ import CreateTaskForm from './CreateWorkFormBar.vue'
 import ExistingTaskSelection from './ExistingWorkSelection.vue'
 import axios from 'axios'; // 新增此行
 import config from '../../util/config'
+import Cookies from 'js-cookie'; // 导入 js-cookie 库
+import { encrypt} from '../../util/util'; // 导入加密函数
 
 export default {
   components: {
@@ -35,6 +37,10 @@ export default {
       try {
         const response = await axios.get(`${config.getSetting('API_BASE_URL')}/api/getUserInfo`, { withCredentials: true }); // 使用 axios 进行 API 调用并携带凭证
         this.personaId = response.data.personaId;
+        const userInfo = {
+          personaId: this.personaId
+        }
+        Cookies.set('userInfo', encrypt(JSON.stringify(userInfo)), { path: '/' })
         if (this.personaId === 707) {
           this.currentView = 'existing';
         }

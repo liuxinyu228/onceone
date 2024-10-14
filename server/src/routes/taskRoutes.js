@@ -30,9 +30,9 @@ router.post('/taskTemplate', (req, res) => {
 
         const taskTemplateId = result.insertId;
 
-        // 查询所有任务并按 task_id 分组
+        // 查询所有任务并按 task_id 分组，确保不违反 SQL 的 only_full_group_by 模式
         const selectTasksQuery = `
-            SELECT task_id, work_classification FROM card_task GROUP BY task_id;
+            SELECT task_id, MAX(work_classification) AS work_classification FROM card_task GROUP BY task_id;
         `;
 
         db.query(selectTasksQuery, (err, tasks) => {
@@ -59,7 +59,7 @@ router.post('/taskTemplate', (req, res) => {
                 ]);
 
             if (taskValues.length === 0) {
-                return res.status(200).json({ message: 'No tasks need to be added for this classification' });
+                return res.status(201).json({ message: '首次任务模板添加成功' });
             }
 
             // 为每一个符合条件的组新增任务
@@ -73,7 +73,7 @@ router.post('/taskTemplate', (req, res) => {
                     return res.status(500).json({ error: err.message });
                 }
 
-                res.status(201).json({ message: 'Task template and tasks added successfully', taskId: taskTemplateId });
+                res.status(201).json({ message: '任务模板添加成功', taskId: taskTemplateId });
             });
         });
     });
@@ -219,9 +219,13 @@ router.get('/userWorkTasks', (req, res) => {
 router.post('/addUserWorkTask', (req, res) => {
     const username = req.session.userId; // 从 session 中获取用户名
     const groupId = req.session.groupId; // 从 session 中获取 group_id
-
+    const personaId = req.session.personaId; // 从 session 中获取 persona_id
+    
     if (!username) {
         return res.status(401).json({ message: 'User not logged in' });
+    }
+    if (personaId == 707) {
+        return res.status(403).json({ message: 'Permission denied' });
     }
 
     // 从 Cookie 中获取加密的系统信息并解密
@@ -246,109 +250,124 @@ router.post('/addUserWork', (req, res) => {
 
     const { businessSystemName, superintendentName, superintendentPhone, superintendentEmail, workClassification, creationDate } = req.body;
 
-    // 先查询是否存在同名同任务类型的评估任务
-    const checkQuery = `
-        SELECT * FROM card_task ct
-        JOIN card_system cs ON ct.task_id = cs.task_id
-        JOIN user_businesssystem_map ubm ON cs.system_id = ubm.businessSystem_id
-        JOIN card_users cu ON ubm.user_businessSystem_list_id = cu.businessSystemListID
-        WHERE ubm.group_id = ? AND cs.system_name = ? AND ct.work_classification = ?;
+    // 先查询 card_task_template 中是否存在对应的 workClassification
+    const checkTemplateQuery = `
+        SELECT * FROM card_task_template WHERE work_classification = ?;
     `;
 
-    db.query(checkQuery, [groupId, businessSystemName, workClassification], (err, results) => {
+    db.query(checkTemplateQuery, [workClassification], (err, templates) => {
         if (err) {
             return res.status(500).json({ error: err.message });
         }
 
-        if (results.length > 0) {
-            return res.status(400).json({ message: 'Evaluation system with the same name and task type already exists in the group' });
+        if (templates.length === 0) {
+            return res.status(400).json({ message: '请通知管理员新增任务模板' });
         }
 
-        const taskId = uuidv4();
-
-        // 在 card_system 中创建评估系统记录
-        const insertSystemQuery = `
-            INSERT INTO card_system (system_name, superintendent_name, superintendent_phone, superintendent_email, work_classification, task_id, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?);
+        // 继续执行其他操作
+        const checkQuery = `
+            SELECT * FROM card_task ct
+            JOIN card_system cs ON ct.task_id = cs.task_id
+            JOIN user_businesssystem_map ubm ON cs.system_id = ubm.businessSystem_id
+            JOIN card_users cu ON ubm.user_businessSystem_list_id = cu.businessSystemListID
+            WHERE ubm.group_id = ? AND cs.system_name = ? AND ct.work_classification = ?;
         `;
 
-        db.query(insertSystemQuery, [businessSystemName, superintendentName, superintendentPhone, superintendentEmail, workClassification, taskId, creationDate], (err, result) => {
+        db.query(checkQuery, [groupId, businessSystemName, workClassification], (err, results) => {
             if (err) {
                 return res.status(500).json({ error: err.message });
             }
 
-            const systemId = result.insertId;
+            if (results.length > 0) {
+                return res.status(400).json({ message: 'Evaluation system with the same name and task type already exists in the group' });
+            }
 
-            // 将创建的评估系统记录与 card_users 中对应的用户进行关联
-            const insertUserSystemMapQuery = `
-                INSERT INTO user_businesssystem_map (user_businessSystem_list_id, businessSystem_id,group_id)
-                SELECT 
-                    CASE 
-                        WHEN businessSystemListID IS NULL THEN ? 
-                        ELSE businessSystemListID 
-                    END, 
-                    ? ,
-                    ?
-                FROM card_users 
-                WHERE username = ?;
+            const taskId = uuidv4();
+
+            // 在 card_system 中创建评估系统记录
+            const insertSystemQuery = `
+                INSERT INTO card_system (system_name, superintendent_name, superintendent_phone, superintendent_email, work_classification, task_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?);
             `;
 
-            const newBusinessSystemListID = uuidv4();
-
-            db.query(insertUserSystemMapQuery, [newBusinessSystemListID, systemId, groupId, username], (err) => {
+            db.query(insertSystemQuery, [businessSystemName, superintendentName, superintendentPhone, superintendentEmail, workClassification, taskId, creationDate], (err, result) => {
                 if (err) {
                     return res.status(500).json({ error: err.message });
                 }
 
-                // 更新 card_users 表中的 businessSystemListID 字段
-                const updateUserBusinessSystemListIDQuery = `
-                    UPDATE card_users
-                    SET businessSystemListID = ?
-                    WHERE username = ? AND businessSystemListID IS NULL;
+                const systemId = result.insertId;
+
+                // 将创建的评估系统记录与 card_users 中对应的用户进行关联
+                const insertUserSystemMapQuery = `
+                    INSERT INTO user_businesssystem_map (user_businessSystem_list_id, businessSystem_id, group_id)
+                    SELECT 
+                        CASE 
+                            WHEN businessSystemListID IS NULL THEN ? 
+                            ELSE businessSystemListID 
+                        END, 
+                        ?,
+                        ?
+                    FROM card_users 
+                    WHERE username = ?;
                 `;
 
-                db.query(updateUserBusinessSystemListIDQuery, [newBusinessSystemListID, username], (err) => {
+                const newBusinessSystemListID = uuidv4();
+
+                db.query(insertUserSystemMapQuery, [newBusinessSystemListID, systemId, groupId, username], (err) => {
                     if (err) {
                         return res.status(500).json({ error: err.message });
                     }
 
-                    // 根据 workClassification 参数的值在 card_task_template 表中查询出对应的任务
-                    const selectTaskTemplateQuery = `
-                        SELECT * FROM card_task_template WHERE work_classification = ?;
+                    // 更新 card_users 表中的 businessSystemListID 字段
+                    const updateUserBusinessSystemListIDQuery = `
+                        UPDATE card_users
+                        SET businessSystemListID = ?
+                        WHERE username = ? AND businessSystemListID IS NULL;
                     `;
 
-                    db.query(selectTaskTemplateQuery, [workClassification], (err, taskTemplates) => {
+                    db.query(updateUserBusinessSystemListIDQuery, [newBusinessSystemListID, username], (err) => {
                         if (err) {
                             return res.status(500).json({ error: err.message });
                         }
 
-                        // 在 card_task 表中新增对应记录，并关联 task_id
-                        const insertTaskQuery = `
-                            INSERT INTO card_task (status, title, work_classification, description, guide, reportContent, materialPath, taskCategory, created_at, updated_at, task_id, template_id)
-                            VALUES ?;
+                        // 根据 workClassification 参数的值在 card_task_template 表中查询出对应的任务
+                        const selectTaskTemplateQuery = `
+                            SELECT * FROM card_task_template WHERE work_classification = ?;
                         `;
 
-                        const taskValues = taskTemplates.map(task => [
-                            '进行中',
-                            task.title,
-                            task.work_classification,
-                            task.description,
-                            task.guide,
-                            task.reportContent,
-                            task.materialPath,
-                            task.taskCategory,
-                            new Date(),
-                            new Date(),
-                            taskId, // 关联 task_id
-                            task.id // 关联 template_id
-                        ]);
-
-                        db.query(insertTaskQuery, [taskValues], (err) => {
+                        db.query(selectTaskTemplateQuery, [workClassification], (err, taskTemplates) => {
                             if (err) {
                                 return res.status(500).json({ error: err.message });
                             }
 
-                            res.status(200).json({ message: 'Evaluation system and tasks added successfully' });
+                            // 在 card_task 表中新增对应记录，并关联 task_id
+                            const insertTaskQuery = `
+                                INSERT INTO card_task (status, title, work_classification, description, guide, reportContent, materialPath, taskCategory, created_at, updated_at, task_id, template_id)
+                                VALUES ?;
+                            `;
+
+                            const taskValues = taskTemplates.map(task => [
+                                '进行中',
+                                task.title,
+                                task.work_classification,
+                                task.description,
+                                task.guide,
+                                task.reportContent,
+                                task.materialPath,
+                                task.taskCategory,
+                                new Date(),
+                                new Date(),
+                                taskId, // 关联 task_id
+                                task.id // 关联 template_id
+                            ]);
+
+                            db.query(insertTaskQuery, [taskValues], (err) => {
+                                if (err) {
+                                    return res.status(500).json({ error: err.message });
+                                }
+
+                                res.status(200).json({ message: 'Evaluation system and tasks added successfully' });
+                            });
                         });
                     });
                 });

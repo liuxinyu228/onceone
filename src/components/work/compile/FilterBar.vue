@@ -1,6 +1,6 @@
 <template>
     <div class="flex space-x-4">
-      <select class="border-gray-300 p-2 rounded-md" @change="filterTasks('type', $event.target.value)">
+      <select class="border-gray-300 p-2 rounded-md" @change="filterTasks('taskCategory', $event.target.value)">
         <option value="">任务类型</option>
         <option value="风险项">风险项</option>
         <option value="保障项">保障项</option>

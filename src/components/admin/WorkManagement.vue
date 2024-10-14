@@ -38,7 +38,7 @@
               <p class="mb-1">负责人: {{ task.responsible }}</p>
               <p class="mb-1">评估分类: {{ task.work_classification }}</p>
               <p class="mb-1">截止日期: {{ task.end_at }}</p>
-              <div class="mb-1">进度:</div>
+              <div class="mb-1">进度: {{task.completedTasks}} / {{task.totalTasks}}</div>
               <div class="w-full bg-gray-200 rounded">
                 <div
                   class="bg-blue-600 text-xs font-medium text-blue-100 text-center p-0.5 leading-none rounded"
@@ -130,7 +130,7 @@
   </template>
   
   <script>
-  import { ref, onMounted } from 'vue'
+  import { ref, onMounted, watch } from 'vue'
   import axios from 'axios'
   import { PlusIcon, CheckIcon } from 'lucide-vue-next'
   import config from '../../util/config'
@@ -145,7 +145,7 @@
       optConfirm
     },
     setup() {
-      const tasks = ref([])
+      const systems = ref([])
       const assistTasks = ref([])
       const newTask = ref({
         systemName: '',
@@ -170,11 +170,11 @@
       const fetchTasks = async () => {
         try {
           const response = await axios.get(`${config.getSetting('API_BASE_URL')}/api/admin/getUserWorks`, { withCredentials: true })
-          tasks.value = response.data.map(task => {
+          systems.value = response.data.map(task => {
             const taskDetails = JSON.parse(task.tasks)
             const totalTasks = taskDetails.length
             const completedTasks = taskDetails.filter(t => t.status === '已完成').length
-            const progress = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0
+            const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
 
             return {
               id: task.system_id,
@@ -187,12 +187,15 @@
               work_classification: task.work_classification,
               end_at: task.end_at,
               status: task.status,
-              progress: progress
+              progress: progress,
+              completedTasks: completedTasks,
+              totalTasks: totalTasks
             }
           })
         } catch (error) {
           console.error('Error fetching tasks:', error)
         }
+        console.log("tasks:", systems.value)
       }
 
       const fetchAssistTasks = async () => {
@@ -248,8 +251,8 @@
             console.error('Error adding task:', error);
           })
 
-        tasks.value.push({
-          id: tasks.value.length + 1,
+        systems.value.push({
+          id: systems.value.length + 1,
           ...newTask.value,
           status: '未开始',
           progress: 0,
@@ -362,7 +365,7 @@
             if (showMessageRef.value) {
               showMessageRef.value.showMessage('任务已删除')
             }
-            tasks.value = tasks.value.filter(task => task.id !== taskId)
+            systems.value = systems.value.filter(task => task.id !== taskId)
             }
           })
           .catch(error => {
@@ -374,8 +377,15 @@
         
       }
 
+      // 监听 tasks 的变化
+      watch(systems, (newTasks) => {
+        // 在这里执行需要的操作，例如刷新页码
+        console.log('Tasks updated:', newTasks);
+        // 当task发生变化时，应该重新渲染页面
+      });
+
       return {
-        tasks,
+        tasks: systems,
         assistTasks,
         newTask,
         showModal,

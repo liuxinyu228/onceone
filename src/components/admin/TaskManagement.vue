@@ -126,7 +126,7 @@ const title = ref('TaskTemplate Management')
 const headers = ['title', 'work_classification', 'description', 'guide', 'taskCategory']
 const searchQuery = ref('')
 const selectedCategory = ref('All')
-const categories = ['All','风险项', '保障项']
+const categories = ['All','新技术新业务安全评估', '涉诈风险安全评估']
 const itemsPerPage = ref(10)
 const currentPage = ref(1)
 const showMessageRef = ref(null)
@@ -159,8 +159,8 @@ const filteredItems = computed(() => {
   return items.value.filter(item =>
     item.title.toLowerCase().includes(searchQuery.value.toLowerCase()) &&
     ( selectedCategory.value === 'All' || 
-     (selectedCategory.value === '风险项' && item.taskCategory === '风险项') ||
-     (selectedCategory.value === '保障项' && item.taskCategory === '保障项'))
+     (selectedCategory.value === '新技术新业务安全评估' && item.work_classification === '101') ||
+     (selectedCategory.value === '涉诈风险安全评估' && item.work_classification === '102'))
   )
 })
 
