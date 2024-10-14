@@ -33,7 +33,7 @@
 </template>
 
 <script>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { MenuIcon, XIcon, UserIcon, ClipboardListIcon } from 'lucide-vue-next'
 
 export default {
@@ -50,6 +50,21 @@ export default {
     const toggleSidebar = () => {
       sidebarOpen.value = !sidebarOpen.value
     }
+
+    // 新增：检测屏幕大小
+    const checkScreenSize = () => {
+      console.log(window.innerWidth)
+      if (window.innerWidth < 768) { // 小于768px时
+        sidebarOpen.value = false
+      } else {
+        sidebarOpen.value = true
+      }
+    }
+
+    onMounted(() => {
+      checkScreenSize()
+      window.addEventListener('resize', checkScreenSize) // 监听窗口大小变化
+    })
 
     const setActiveTab = (tab) => {
       activeTab.value = tab
