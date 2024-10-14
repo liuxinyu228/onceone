@@ -44,7 +44,7 @@ export default {
     ClipboardListIcon
   },
   setup(props, { emit }) {
-    const sidebarOpen = ref(true)
+    const sidebarOpen = ref(false)
     const activeTab = ref('users')
 
     const toggleSidebar = () => {
