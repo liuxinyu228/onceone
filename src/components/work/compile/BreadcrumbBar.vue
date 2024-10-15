@@ -6,7 +6,7 @@
 
 <script>
 import Cookies from 'js-cookie';
-import { decrypt } from '../../../util/util'; // 假设解密函数在 utils/util.js 中
+import { decrypt } from '@/util/util'; // 假设解密函数在 utils/util.js 中
 
 export default {
   data() {

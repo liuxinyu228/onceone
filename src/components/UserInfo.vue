@@ -1,33 +1,42 @@
 <template>
-  <div class="user-info flex justify-between items-center p-4 bg-gray-100 rounded relative">
-    <span class="username font-bold" @click="toggleOptions">{{ userInfo ? userInfo.userId : '加载中...' }}</span>
-    <div v-if="showOptions" :class="optionsClass" class="options bg-white shadow-md rounded p-2 inline-flex flex-col">
-      <button class="btn-secondary text-black hover:bg-gray-300 py-2 px-1 rounded" @click="logout">退出</button>
-      <button class="btn-secondary text-black hover:bg-gray-300 py-2 px-1 rounded" @click="showPasswordModal = true">修改密码</button>
+  <div :class="['user-info', { 'collapsed': isCollapsed }]">
+    <span class="username" @click="toggleOptions">
+      <UserRoundPen class="icon" />
+      <span v-if="!isCollapsed">{{ userInfo ? userInfo.userId : '加载中...' }}</span>
+    </span>
+    <div v-if="showOptions" :class="optionsClass" class="options">
+      <button class="btn-secondary" @click="logout">
+        <LogOut class="icon" />
+        <span v-if="!isCollapsed">退出</span>
+      </button>
+      <button class="btn-secondary" @click="showPasswordModal = true">
+        <KeySquare class="icon" />
+        <span v-if="!isCollapsed">修改密码</span>
+      </button>
     </div>
   </div>
-  <div v-if="showPasswordModal" class="modal fixed top-0 left-0 w-full h-full flex items-center justify-center bg-gray-800 bg-opacity-50">
-    <div class="modal-content bg-white border border-gray-300 shadow-lg rounded-lg p-6 w-96">
-      <span class="close cursor-pointer text-gray-500 hover:text-gray-700" @click="showPasswordModal = false">&times;</span>
-      <h2 class="text-xl font-semibold mb-4">修改密码</h2>
+  <div v-if="showPasswordModal" class="modal">
+    <div class="modal-content">
+      <span class="close" @click="showPasswordModal = false">&times;</span>
+      <h2>修改密码</h2>
       <form @submit.prevent="changePassword">
         <div class="mb-4 relative">
-          <label for="oldPassword" class="block text-sm font-medium text-gray-700">旧密码:</label>
-          <input :type="oldPasswordType" v-model="oldPassword" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
-          <span @click="toggleOldPasswordType" class="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer text-gray-500">
+          <label for="oldPassword">旧密码:</label>
+          <input :type="oldPasswordType" v-model="oldPassword" required />
+          <span @click="toggleOldPasswordType" class="toggle-password">
             {{ oldPasswordType === 'password' ? '</>' : '<?>' }}
           </span>
         </div>
         <div class="mb-4 relative">
-          <label for="newPassword" class="block text-sm font-medium text-gray-700">新密码:</label>
-          <input :type="newPasswordType" v-model="newPassword" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
-          <span @click="toggleNewPasswordType" class="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer text-gray-500">
+          <label for="newPassword">新密码:</label>
+          <input :type="newPasswordType" v-model="newPassword" required />
+          <span @click="toggleNewPasswordType" class="toggle-password">
             {{ newPasswordType === 'password' ? '</>' : '<?>' }}
           </span>
         </div>
-        <button type="submit" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">提交</button>
+        <button type="submit">提交</button>
       </form>
-      <p v-if="passwordError" class="error text-red-500 mt-2">{{ passwordError }}</p>
+      <p v-if="passwordError" class="error">{{ passwordError }}</p>
     </div>
   </div>
   <show-message ref="messageBox"></show-message>
@@ -35,20 +44,24 @@
 
 <script>
 import axios from 'axios';
-import config from '../util/config'
-import showMessage from './showMessage.vue'
-import Cookies from 'js-cookie'; // 引入 js-cookie 库
+import config from '@/util/config'
+import showMessage from '@/components/common/showMessage.vue'
+import Cookies from 'js-cookie';
+import { UserRoundPen, KeySquare, LogOut } from 'lucide-vue-next';
 
 export default {
   props: {
     orientation: {
       type: String,
-      default: 'down', // 默认向下弹出
+      default: 'down',
       validator: value => ['up', 'down'].includes(value)
     }
   },
   components: {
-    showMessage
+    showMessage,
+    UserRoundPen,
+    KeySquare,
+    LogOut
   },
   data() {
     return {
@@ -59,7 +72,8 @@ export default {
       newPassword: '',
       passwordError: '',
       oldPasswordType: 'password',
-      newPasswordType: 'password'
+      newPasswordType: 'password',
+      isCollapsed: false
     };
   },
   computed: {
@@ -75,7 +89,7 @@ export default {
       axios.post(`${config.getSetting('API_BASE_URL')}/api/logout`, {}, { withCredentials: true })
         .then(response => {
           console.log(response.data.message);
-          Cookies.remove('taskInfo'); // 删除 userId 的 Cookie
+          Cookies.remove('taskInfo');
           this.$router.push('/login');
         })
         .catch(error => {
@@ -112,34 +126,110 @@ export default {
     },
     toggleNewPasswordType() {
       this.newPasswordType = this.newPasswordType === 'password' ? 'text' : 'password';
+    },
+    handleResize() {
+      this.isCollapsed = window.innerWidth < 768;
     }
   },
   mounted() {
     this.getUserInfo();
+    window.addEventListener('resize', this.handleResize);
+    this.handleResize();
+  },
+  beforeUnmount() {
+    window.removeEventListener('resize', this.handleResize);
   }
 };
 </script>
 
 <style scoped>
 .user-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background-color: #f7fafc;
+  border-radius: 0.5rem;
   position: relative;
+  transition: all 0.3s;
 }
 
-.options-down {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  transform: translateY(10px);
+.collapsed {
+  padding: 0.5rem;
 }
 
-.options-up {
-  position: absolute;
-  bottom: 100%;
-  left: 0;
-  transform: translateY(-10px);
+.username {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.icon {
+  height: 1.25rem;
+  width: 1.25rem;
+  margin-right: 0.5rem;
+}
+
+.options {
+  background-color: #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.btn-secondary {
+  display: flex;
+  align-items: center;
+  color: #4a5568;
+  padding: 0.5rem;
+  border-radius: 0.25rem;
+  transition: background-color 0.3s;
+}
+
+.btn-secondary:hover {
+  background-color: #e2e8f0;
 }
 
 .modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.5);
   z-index: 50;
+}
+
+.modal-content {
+  background-color: #fff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  width: 24rem;
+}
+
+.close {
+  cursor: pointer;
+  color: #718096;
+  transition: color 0.3s;
+}
+
+.close:hover {
+  color: #4a5568;
+}
+
+.toggle-password {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  color: #718096;
 }
 </style>

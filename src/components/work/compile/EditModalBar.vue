@@ -49,7 +49,7 @@
               v-for="(file, index) in editedTask.materialPath"
               :key="index"
               class="px-3 py-1 bg-gray-200 text-gray-700 rounded-full text-sm flex items-center"
-               @click="downloadFile(file.id)"
+               @click="showImageToBlank(file.id)"
               >
               <span class="mr-1">{{ file.path }}</span>
               <button
@@ -70,7 +70,7 @@
               v-for="(file, index) in editedTask.materialPath"
               :key="index"
               class="px-3 py-1 bg-gray-200 text-gray-700 rounded-full text-sm flex items-center"
-              @click="downloadFile(file.id)"
+              @click="showImageToBlank(file.id)"
             >
               <span class="mr-1">{{ file.path }}</span>
             </div>
@@ -113,14 +113,19 @@
         </div>
       </div>
     </div>
+    <ProgressBar v-if="showUploadProgress" :progress="uploadProgress" @cancel="cancelUpload" />
   </template>
   
   <script>
   import { formatDate } from '@/util/util';
   import axios from 'axios';
-  import config from '../../../util/config'
+  import config from '@/util/config'
+  import ProgressBar from '@/components/common/ProgressBar.vue'; // 导入进度条组件
 
   export default {
+    components: {
+      ProgressBar
+    },
     props: {
       task: {
         type: Object,
@@ -139,6 +144,9 @@
         Status: '进行中',
         showAlert: false,
         alertMessage: '',
+        showUploadProgress: false,
+        uploadProgress: 0,
+        cancelTokenSource: null,
       };
     },
     computed: {
@@ -214,33 +222,40 @@
         const formData = new FormData();
         formData.append('file', file);
 
-        fetch(`${config.getSetting('API_BASE_URL')}/api/updateTaskMaterial/${this.editedTask.id}`, {
-          method: 'POST',
-          credentials: 'include', // 携带凭证
-          body: formData
+        this.showUploadProgress = true;
+        this.uploadProgress = 0;
+
+        this.cancelTokenSource = axios.CancelToken.source();
+
+        axios.post(`${config.getSetting('API_BASE_URL')}/api/updateTaskMaterial/${this.editedTask.id}`, formData, {
+          withCredentials: true,
+          cancelToken: this.cancelTokenSource.token,
+          onUploadProgress: (progressEvent) => {
+            if (progressEvent.lengthComputable) {
+              this.uploadProgress = (progressEvent.loaded / progressEvent.total) * 100;
+            }
+          }
         })
         .then(response => {
-          const data = response.json();
-          if (!response.ok) {
-            if (response.status === 400) {
-              this.showAlertMessage('文件上传数量达到最大'); 
-              return;
-            }
-            this.showAlertMessage('文件上传失败:' + data.message); 
-            return;
-          }
-
-          return data;
-        })
-        .then(data => {
-          this.editedTask.materialPath = data.filePath;
-          this.$emit('save', this.editedTask, false); // 触发保存事件，并传递编辑后的任务
+          this.showUploadProgress = false;
+          this.editedTask.materialPath = response.data.filePath;
+          this.$emit('save', this.editedTask, false);
           this.showAlertMessage('文件上传成功');
         })
         .catch(error => {
-          console.error('文件上传失败:', error);
-          this.showAlertMessage('文件上传失败');
+          this.showUploadProgress = false;
+          if (axios.isCancel(error)) {
+            this.showAlertMessage('上传已取消');
+          } else {
+            this.showAlertMessage('文件上传失败');
+          }
         });
+      },
+      cancelUpload() {
+        if (this.cancelTokenSource) {
+          this.cancelTokenSource.cancel('用户取消了上传');
+          this.showUploadProgress = false;
+        }
       },
       showAlertMessage(message) {
         this.alertMessage = message;
@@ -279,21 +294,16 @@
           this.showAlertMessage('文件移除失败');
         });
       },
-      downloadFile(fileId) {
-        const downloadUrl = `${config.getSetting('API_BASE_URL')}/api/downloadTaskMaterial/${this.editedTask.id}?fileId=${fileId}`;
-
-        axios.get(downloadUrl, {
-            responseType: 'blob', // 确保响应类型为 blob
-            withCredentials: true // 携带凭证
-        })
-        .then(response => {
-            const url = window.URL.createObjectURL(new Blob([response.data]));
-            window.open(url, '_blank'); // 在新窗口中打开文件
-        })
-        .catch(error => {
-            console.error('文件预览失败:', error);
-            this.showAlertMessage('文件预览失败');
-        });
+      showImageToBlank(fileId) {
+          const imageID = this.editedTask.id;
+          const newWindowUrl = this.$router.resolve({
+          path: '/imageViewer',
+          query: { 
+            imageID: imageID,
+            fileId: fileId
+           }
+        }).href;
+        window.open(newWindowUrl, '_blank');
       },
     },
   };

@@ -42,9 +42,9 @@
           <div class="absolute left-1/2 transform -translate-x-1/2 w-1 h-full bg-gray-300"></div>
           <transition-group name="timeline" tag="div" class="space-y-8">
             <div v-for="(event, index) in sortedEvents" :key="event.id" 
-                 class="relative flex items-center justify-between"
+                 class="relative flex items-center justify-between timeline-card"
                  :class="{ 'flex-row-reverse': index % 2 !== 0 }">
-              <div class="flex items-center w-5/12" :class="{ 'justify-end': index % 2 !== 0 }">
+              <div class="flex items-center w-5/12 timeline-card-content" :class="{ 'justify-end': index % 2 !== 0 }">
                 <div class="bg-white p-4 rounded-lg shadow-md transition-all duration-300 ease-in-out hover:shadow-lg w-7/12"
                      :class="{ 'mr-8': index % 2 === 0, 'ml-8': index % 2 !== 0 }">
                   <h3 class="text-lg font-semibold text-gray-900">{{ event.title }}</h3>
@@ -72,7 +72,7 @@
   <script setup>
   import { ref, computed, onMounted } from 'vue'
   import axios from 'axios'
-  import config from '../../../../util/config'
+  import config from '@/util/config'
   
   const events = ref([])
   const newEvent = ref({
@@ -150,5 +150,16 @@
   .timeline-leave-to {
     opacity: 0;
     transform: translateY(30px);
+  }
+  
+  @media (max-width: 768px) {
+    .timeline-card {
+      flex-direction: column !important;
+      align-items: flex-start !important;
+    }
+    .timeline-card-content {
+      width: 100% !important;
+      margin: 0 !important;
+    }
   }
   </style>

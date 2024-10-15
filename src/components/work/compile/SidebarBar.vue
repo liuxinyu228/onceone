@@ -1,22 +1,25 @@
 <template>
-    <div class="w-64 bg-gray-100 max-h-full p-4 flex flex-col justify-between">
+    <div :class="['sidebar', { 'collapsed': isCollapsed }]">
       <div>
-        <h1 class="text-2xl font-bold">LOGO</h1>
+        <h1 v-if="!isCollapsed" class="text-2xl font-bold">onceone</h1>
         <nav class="mt-6">
           <ul>
             <li class="mb-2">
-              <router-link to="/compile" class="text-gray-500" active-class="text-blue-600" exact-active-class="text-blue-600">
-                评估任务
+              <router-link to="/compile" class="nav-item" active-class="text-blue-600" exact-active-class="text-blue-600">
+                <NotebookPen class="icon" />
+                <span v-if="!isCollapsed">评估任务</span>
               </router-link>
             </li>
             <li class="mb-2">
-              <router-link to="/compile/timeline" class="text-gray-500" active-class="text-blue-600" exact-active-class="text-blue-600">
-                事件时间线
+              <router-link to="/compile/timeline" class="nav-item" active-class="text-blue-600" exact-active-class="text-blue-600">
+                <CalendarCheck class="icon" />
+                <span v-if="!isCollapsed">事件时间线</span>
               </router-link>
             </li>
             <li v-if="userInfo.personaId !== 707" class="mb-2">
-              <router-link to="/compile/filemanager" class="text-gray-500" active-class="text-blue-600" exact-active-class="text-blue-600">
-                参考文件管理
+              <router-link to="/compile/filemanager" class="nav-item" active-class="text-blue-600" exact-active-class="text-blue-600">
+                <FileBadge class="icon" />
+                <span v-if="!isCollapsed">参考文件管理</span>
               </router-link>
             </li>
           </ul>
@@ -30,11 +33,54 @@
 </template>
 
 <script setup>
-import UserInfo from '../../UserInfo.vue'
+import { ref, onMounted, onUnmounted } from 'vue'
+import UserInfo from '@/components/UserInfo.vue'
 import Cookies from 'js-cookie'
-import { decrypt } from '../../../util/util.js'
-
+import { decrypt } from '@/util/util.js'
+import { NotebookPen, CalendarCheck, FileBadge } from 'lucide-vue-next'
 
 const userInfo = JSON.parse(decrypt(Cookies.get('userInfo')))
+const isCollapsed = ref(false)
 
+const handleResize = () => {
+  isCollapsed.value = window.innerWidth < 768
+}
+
+onMounted(() => {
+  window.addEventListener('resize', handleResize)
+  handleResize()
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+})
 </script>
+
+<style scoped>
+.sidebar {
+  width: 16rem;
+  background-color: #f7fafc;
+  max-height: 100%;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: width 0.3s;
+}
+
+.collapsed {
+  width: 4rem;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  color: #4a5568;
+}
+
+.icon {
+  height: 1.25rem;
+  width: 1.25rem;
+  margin-right: 0.5rem;
+}
+</style>

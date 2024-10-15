@@ -133,9 +133,9 @@
   import { ref, onMounted, watch } from 'vue'
   import axios from 'axios'
   import { PlusIcon, CheckIcon } from 'lucide-vue-next'
-  import config from '../../util/config'
-  import showMessage from '../showMessage.vue'
-  import optConfirm from '../optConfirm.vue'
+  import config from '@/util/config'
+  import showMessage from '@/components/common/showMessage.vue'
+  import optConfirm from '@/components/common/optConfirm.vue'
   
   export default {
     components: {

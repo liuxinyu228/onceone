@@ -85,7 +85,7 @@
   <script>
   import { ref, reactive, onMounted } from 'vue'
   import { useRouter } from 'vue-router'
-  import config from '../util/config'
+  import config from '@/util/config'
 
   export default {
     setup() {

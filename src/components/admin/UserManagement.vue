@@ -57,6 +57,12 @@
                 Edit
               </button>
               <button
+                @click="lockItem(item.id)"
+                class="text-yellow-600 hover:underline mr-2"
+              >
+                Lock
+              </button>
+              <button
                 @click="confirmDeleteItem(item.id)"
                 class="text-red-600 hover:underline"
               >
@@ -112,10 +118,10 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import axios from 'axios' // 确保你已经安装了 axios
-import config from '../../util/config'
-import showMessage from '../../components/showMessage.vue'
-import userModal from './UserModal.vue'
-import optConfirm from '../../components/optConfirm.vue'
+import config from '@/util/config'
+import showMessage from '@/components/common/showMessage.vue'
+import userModal from '@/components/admin/UserModal.vue'
+import optConfirm from '@/components/common/optConfirm.vue'
 
 const title = ref('UserManagement')
 const headers = ['username', 'status','email','phone' ,'is_admin', 'group_id','persona_id','created_at']
@@ -199,7 +205,7 @@ const deleteItem = async (id) => {
 }
 
 const confirmDeleteItem = async (id) => {
-  const delConfirm = await optConfirmRef.value.showConfirm("确定要删除吗？")
+  const delConfirm = await optConfirmRef.value.showConfirm("会删除该用户所有数据包括评估进度，确定要删除吗？")
   if (delConfirm){
     deleteItem(id)
   }
@@ -223,11 +229,11 @@ const addItemSubmit =async (User) => {
   {withCredentials: true}
   );
   if (response.status === 201){
-    showMessageRef.value.showMessage("add item success!")
+    showMessageRef.value.showMessage("用户新增成功，初始密码为："+response.data.password)
     fetchItems();
   }
   }catch(error){
-    showMessageRef.value.showMessage("add item has error:"+error)
+    showMessageRef.value.showMessage("错误:"+error)
   }
 }
 
@@ -249,5 +255,17 @@ const updateItemSubmit = async (updatedTask) =>{
   }
 }   
 
+const lockItem = async (id) => {
+  try {
+    const response = await axios.post(`${config.getSetting('API_BASE_URL')}/api/admin/lockUser`, { id }, { withCredentials: true });
+    if (response.status === 200) {
+      showMessageRef.value.showMessage("Success："+response.data.message);
+      fetchItems(); // 重新获取用户列表以更新状态
+    }
+  } catch (error) {
+    showMessageRef.value.showMessage("锁定/解锁用户时出错: " + error.message);
+  }
+}
 
 </script>
+

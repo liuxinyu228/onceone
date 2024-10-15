@@ -121,10 +121,10 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import axios from 'axios' // 确保你已经安装了 axios
-import config from '../../util/config'
-import showMessage from '../../components/showMessage.vue'
-import TaskModal from './TaskModal.vue' // 引入 TaskModal 组件
-import optConfirm from '../../components/optConfirm.vue'
+import config from '@/util/config'
+import showMessage from '@/components/common/showMessage.vue'
+import TaskModal from '@/components/admin/TaskModal.vue' // 引入 TaskModal 组件
+import optConfirm from '@/components/common/optConfirm.vue'
 
 const title = ref('TaskTemplate Management')
 const headers = ['title', 'work_classification', 'description', 'guide', 'taskCategory']

@@ -17,12 +17,12 @@
 </template>
 
 <script>
-import BreadcrumbBar from './BreadcrumbBar.vue';
-import FilterBar from './FilterBar.vue';
-import TaskList from './TaskList.vue';
-import NewTaskModal from './NewTaskModal.vue';
+import BreadcrumbBar from '@/components/work/compile/BreadcrumbBar.vue';
+import FilterBar from '@/components/work/compile/FilterBar.vue';
+import TaskList from '@/components/work/compile/TaskList.vue';
+import NewTaskModal from '@/components/work/compile/NewTaskModal.vue';
 import Cookies from 'js-cookie'; // 导入 js-cookie 库
-import { decrypt } from '../../../util/util'; // 导入解密函数
+import { decrypt } from '@/util/util'; // 导入解密函数
 
 export default {
   components: {

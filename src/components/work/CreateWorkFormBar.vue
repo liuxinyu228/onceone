@@ -122,7 +122,7 @@
   import { reactive } from 'vue'
   import { encrypt } from '@/util/util.js'
   import Cookies from 'js-cookie'
-  import config from '../../util/config'
+  import config from '@/util/config'
 
   export default {
     data() {

@@ -7,13 +7,13 @@
 </template>
 
 <script>
-import TaskSelection from './CreateWorkSelectionBar.vue'
-import CreateTaskForm from './CreateWorkFormBar.vue'
-import ExistingTaskSelection from './ExistingWorkSelection.vue'
+import TaskSelection from '@/components/work/CreateWorkSelectionBar.vue'
+import CreateTaskForm from '@/components/work/CreateWorkFormBar.vue'
+import ExistingTaskSelection from '@/components/work/ExistingWorkSelection.vue'
 import axios from 'axios'; // 新增此行
-import config from '../../util/config'
+import config from '@/util/config'
 import Cookies from 'js-cookie'; // 导入 js-cookie 库
-import { encrypt} from '../../util/util'; // 导入加密函数
+import { encrypt} from '@/util/util'; // 导入加密函数
 
 export default {
   components: {

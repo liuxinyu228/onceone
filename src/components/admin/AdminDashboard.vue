@@ -16,11 +16,11 @@
 
 <script>
 import { ref } from 'vue'
-import AdminSidebar from './AdminSidebar.vue'
-import UserManagement from './UserManagement.vue'
-import TaskManagement from './TaskManagement.vue'
-import WorkManagement from './WorkManagement.vue'
-import UserInfo from '../UserInfo.vue'
+import AdminSidebar from '@/components/admin/AdminSidebar.vue'
+import UserManagement from '@/components/admin/UserManagement.vue'
+import TaskManagement from '@/components/admin/TaskManagement.vue'
+import WorkManagement from '@/components/admin/WorkManagement.vue'
+import UserInfo from '@/components/UserInfo.vue'
 
 export default {
   components: {

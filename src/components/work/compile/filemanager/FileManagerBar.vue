@@ -136,8 +136,8 @@
   <script setup>
   import { ref, onMounted } from 'vue'
   import axios from 'axios'
-  import config from '../../../../util/config'
-  import showMessage from '../../../showMessage.vue'
+  import config from '@/util/config'
+  import showMessage from '@/components/common/showMessage.vue'
 
   const directories = ref([])
   const newDirectoryName = ref('')

@@ -394,20 +394,105 @@ router.post('/updateUser', (req, res) => {
     });
 });
 
+// 新增 /lockUser 接口，锁定用户,已锁定则解锁
+router.post('/lockUser', (req, res) => {
+    const { id } = req.body;
+
+    // 查询用户当前状态
+    const query = 'SELECT status FROM card_users WHERE id = ?';
+    db.query(query, [id], (err, results) => {
+        if (err) {
+            return res.status(500).json({ message: '服务器错误！', error: err });
+        }
+        if (results.length === 0) {
+            return res.status(404).json({ message: '用户未找到' });
+        }
+
+        const currentStatus = results[0].status;
+
+        // 根据当前状态调用锁定或解锁方法
+        if (currentStatus === 1) {
+            cardUser.unlockUser(id, (err, result) => {
+                if (err) {
+                    return res.status(500).json({ message: '服务器错误！'});
+                }
+                if (result.affectedRows === 0) {
+                    return res.status(404).json({ message: '用户未找到' });
+                }
+                res.status(200).json({ message: '用户解锁成功' });
+            });
+        } else {
+            cardUser.lockUser(id, (err, result) => {
+                if (err) {
+                    return res.status(500).json({ message: '服务器错误！' });
+                }
+                if (result.affectedRows === 0) {
+                    return res.status(404).json({ message: '用户未找到' });
+                }
+                res.status(200).json({ message: '用户锁定成功' });
+            });
+        }
+    });
+});
+
 // 新增 /deleteUser 接口，删除用户
 router.delete('/deleteUser', (req, res) => {
     const { id } = req.body;
 
-    cardUser.deleteUser(id, (err, result) => {
+    // 删除 card_task 表中用户拥有的任务
+    const deleteUserTasksQuery = `
+        DELETE FROM card_task WHERE task_id IN (
+            SELECT task_id FROM card_system WHERE system_id IN (
+                SELECT businessSystem_id FROM user_businesssystem_map WHERE user_businessSystem_list_id = (
+                    SELECT businessSystemListID FROM card_users WHERE id = ?
+                )
+            )
+        );
+    `;
+
+    db.query(deleteUserTasksQuery, [id], (err) => {
         if (err) {
-            return res.status(500).json({ message: 'Database error', error: err });
+            return res.status(500).json({ message: '服务器错误！' });
         }
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ message: 'User not found' });
-        }
-        res.status(200).json({ message: 'User deleted successfully' });
+
+        // 删除 card_system 表中用户拥有的系统
+        const deleteUserSystemsQuery = `
+            DELETE FROM card_system WHERE system_id IN (
+                SELECT businessSystem_id FROM user_businesssystem_map WHERE user_businessSystem_list_id = (
+                    SELECT businessSystemListID FROM card_users WHERE id = ?
+                )
+            );
+        `;
+
+        db.query(deleteUserSystemsQuery, [id], (err) => {
+            if (err) {
+                return res.status(500).json({ message: '服务器错误！'});
+            }
+
+            // 删除 user_businesssystem_map 表中的绑定关系
+            const deleteUserSystemMapQuery = `
+                DELETE FROM user_businesssystem_map WHERE user_businessSystem_list_id = (
+                    SELECT businessSystemListID FROM card_users WHERE id = ?
+                );
+            `;
+
+            db.query(deleteUserSystemMapQuery, [id], (err) => {
+                if (err) {
+                    return res.status(500).json({ message: '服务器错误！' });
+                }
+
+                // 最后删除用户
+                cardUser.deleteUser(id, (err, result) => {
+                    if (err) {
+                        return res.status(500).json({ message: '服务器错误！' });
+                    }
+                    res.status(200).json({ message: '用户删除成功' });
+                });
+            });
+        });
     });
 });
+
 
 // 根据工作类型获取所有任务模板
 router.get('/taskTemplate/:taskType', (req, res) => {

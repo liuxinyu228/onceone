@@ -34,9 +34,15 @@ class cardUser {
     connection.query(sql, userStructure, callback);
   }
 
-  // 删除用户
-  static deleteUser(id, callback) {
+  // 锁定用户
+  static lockUser(id, callback) {
     const sql = 'UPDATE card_users SET status = 1 WHERE id = ?';
+    connection.query(sql, [id], callback);
+  }
+
+  // 解锁用户
+  static unlockUser(id, callback) {
+    const sql = 'UPDATE card_users SET status = 0 WHERE id = ?';
     connection.query(sql, [id], callback);
   }
 
@@ -59,6 +65,12 @@ class cardUser {
   static updatePassword(id, newPassword, callback) {
     const sql = 'UPDATE card_users SET password = ? WHERE id = ?';
     connection.query(sql, [newPassword, id], callback);
+  }
+
+  //删除用户
+  static deleteUser(id, callback) {
+    const sql = 'DELETE FROM card_users WHERE id = ?';
+    connection.query(sql, [id], callback);
   }
 }
 

@@ -1,13 +1,13 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import MainLayout from '../components/work/compile/MainLayout.vue';
-import TaskPage from '../components/work/compile/TaskPage.vue';
-import TaskTimeLine from '../components/work/compile/timeline/TimeLineBar.vue';
-import CreateTaskMange from '../components/work/CreateWorkMange.vue';
-import UserLogin from '../components/UserLogin.vue';
-import FileManager from '../components/work/compile/filemanager/FileManagerBar.vue';
-import AdminDashboard from '../components/admin/AdminDashboard.vue';
-import config from '../util/config';
-
+import MainLayout from '@/components/work/compile/MainLayout.vue';
+import TaskPage from '@/components/work/compile/TaskPage.vue';
+import TaskTimeLine from '@/components/work/compile/timeline/TimeLineBar.vue';
+import CreateTaskMange from '@/components/work/CreateWorkMange.vue';
+import UserLogin from '@/components/UserLogin.vue';
+import FileManager from '@/components/work/compile/filemanager/FileManagerBar.vue';
+import AdminDashboard from '@/components/admin/AdminDashboard.vue';
+import config from '@/util/config';
+import ImageViewer from '@/components/common/ImageViewer.vue';
 
 const routes = [
   {
@@ -22,6 +22,7 @@ const routes = [
   { path: '/opt', component: CreateTaskMange },
   { path: '/login', component: UserLogin },
   { path: '/admin', component: AdminDashboard },
+  { path: '/imageViewer', component: ImageViewer },
 ];
 
 const router = createRouter({

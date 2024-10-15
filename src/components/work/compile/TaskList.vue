@@ -39,11 +39,11 @@
 
 <script setup>
 import { ref, computed, onMounted, defineExpose } from 'vue';
-import TaskItem from './TaskItem.vue';
-import TaskPagination from './PaginationBar.vue';
-import TaskEditModal from './EditModalBar.vue';
-import config from '../../../util/config';
-import showMessage from '../../showMessage.vue';
+import TaskItem from '@/components/work/compile/TaskItem.vue';
+import TaskPagination from '@/components/work/compile/PaginationBar.vue';
+import TaskEditModal from '@/components/work/compile/EditModalBar.vue';
+import config from '@/util/config';
+import showMessage from '@/components/common/showMessage.vue';
 
 const showMessageRef = ref(null);
 const tasks = ref([]); // 从 JSON 文件加载的任务数据
