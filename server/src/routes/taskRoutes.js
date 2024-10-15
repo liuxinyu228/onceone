@@ -349,8 +349,8 @@ router.post('/updateTaskMaterial/:id', upload.single('file'), (req, res) => {
 
         // 确定最终的上传目录
         const { system_name, work_classification } = JSON.parse(Util.decrypt(req.cookies.taskInfo));
-        const decodedSystemName = Buffer.from(system_name, 'latin1').toString('utf8');
-        const finalDir = path.join(__dirname, '../../uploads/works', decodedSystemName, work_classification, results[0].title);
+        console.log("uploadfile system_name:",system_name)
+        const finalDir = path.join(__dirname, '../../uploads/works', system_name, work_classification, results[0].title);
         fs.mkdirSync(finalDir, { recursive: true });
 
         // 重命名文件到最终目录
