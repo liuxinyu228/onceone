@@ -21,58 +21,20 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-// 创建表
-db.query(`
-  CREATE TABLE IF NOT EXISTS directories (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    isOpen BOOLEAN DEFAULT 0
-  )
-`);
-
-db.query(`
-  CREATE TABLE IF NOT EXISTS files (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    path VARCHAR(255) NOT NULL,
-    directory_id INT,
-    FOREIGN KEY (directory_id) REFERENCES directories(id)
-  )
-`);
-
-// 创建 card_timeLine 表
-db.query(`
-  CREATE TABLE IF NOT EXISTS card_timeLine (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    title VARCHAR(255) NOT NULL,
-    date DATE NOT NULL,
-    description TEXT,
-    attachment_path VARCHAR(255)
-  )
-`);
-
 // 获取目录和文件
-router.get('/directories', (req, res) => {
-  db.query("SELECT * FROM directories", (err, directories) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
-    const dirPromises = directories.map(dir => {
-      return new Promise((resolve, reject) => {
-        db.query("SELECT * FROM files WHERE directory_id = ?", [dir.id], (err, files) => {
-          if (err) {
-            reject(err);
-          } else {
-            dir.files = files;
-            resolve(dir);
-          }
-        });
-      });
+router.get('/directories', async (req, res) => {
+  try {
+    const directories = await db.query("SELECT * FROM directories");
+    const dirPromises = directories.rows.map(async (dir) => {
+      const files = await db.query("SELECT * FROM files WHERE directory_id = $1", [dir.id]);
+      dir.files = files.rows; // 将文件添加到目录对象中
+      return dir;
     });
-    Promise.all(dirPromises)
-      .then(results => res.json(results))
-      .catch(err => res.status(500).json({ error: err.message }));
-  });
+    const results = await Promise.all(dirPromises);
+    res.json(results);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // 创建目录
@@ -84,12 +46,12 @@ router.post('/directories', (req, res) => {
     return res.status(403).json({ message: 'Permission denied' });
   }
 
-  db.query("SELECT * FROM directories WHERE name = ?", [name], (err, rows) => {
+  db.query("SELECT * FROM directories WHERE name = $1", [name], (err, rows) => {
     if (rows.length > 0) {
       return res.json({ status: false, message: '目录名称已存在' });
     }
 
-    db.query("INSERT INTO directories (name, isOpen) VALUES (?, ?)", [name, 0], (err, result) => {
+    db.query("INSERT INTO directories (name, isOpen) VALUES ($1, $2)", [name, 0], (err, result) => {
       if (err) {
         return res.status(500).json({ error: err.message });
       }
@@ -116,31 +78,31 @@ router.post('/files', upload.single('file'), (req, res) => {
     return res.status(403).json({ message: 'Permission denied' });
   }
 
-  db.query("SELECT * FROM directories WHERE id = ?", [directory_id], (err, rows) => {
+  db.query("SELECT * FROM directories WHERE id = $1", [directory_id], (err, results) => {
     if (err) {
       return res.status(500).json({ message: err.message }); // 确保使用 return
     }
 
-    if (rows.length > 0) {
-      const directory = rows[0];
+    if (results.rows.length > 0) {
+      const directory = results.rows[0];
 
       // 查询当前目录下是否有同名文件
-      db.query("SELECT * FROM files WHERE directory_id = ? AND name = ?", [directory_id, filename], (err, rows) => {
+      db.query("SELECT * FROM files WHERE directory_id = $1 AND name = $2", [directory_id, filename], (err, results) => {
         if (err) {
           return res.status(500).json({ message: err.message }); // 确保使用 return
         }
 
-        if (rows.length > 0) {
+        if (results.rows.length > 0) {
           fs.unlinkSync(req.file.path);
           return res.status(400).json({ message: 'File name already exists in the directory' }); // 确保使用 return
         }
 
         const newFilePath = path.join(UPLOAD_FILE_BASE, 'filemanager', directory.name, filename);
-        db.query("INSERT INTO files (name, path, directory_id) VALUES (?, ?, ?)", [filename, newFilePath, directory_id], (err, result) => {
+        db.query("INSERT INTO files (name, path, directory_id) VALUES ($1, $2, $3) RETURNING id", [filename, newFilePath, directory_id], (err, result) => { // 添加了 RETURNING id
           if (err) {
-            return res.status(500).json({ error: err.message }); // 确保使用 return
+            return res.status(500).json({ error: err.message }); // 确使用 return
           }
-          const newFile = { id: result.insertId, name: filename, path: newFilePath };
+          const newFile = { id: result.rows[0].id, name: filename, path: newFilePath }; // 现在可以正确获取新插入记录的 id
           const targetPath = path.join(__dirname, newFilePath);
           fs.rename(req.file.path, targetPath, (err) => {
             if (err) {
@@ -165,15 +127,15 @@ router.delete('/files/:file_id', (req, res) => {
     return res.status(403).json({ message: 'Permission denied' });
   }
 
-  db.query("SELECT * FROM files WHERE id = ?", [file_id], (err, rows) => {
-    if (rows.length > 0) {
-      const file = rows[0];
+  db.query("SELECT * FROM files WHERE id = $1", [file_id], (err, results) => {
+    if (results.rows.length > 0) {
+      const file = results.rows[0];
       const filePath = path.join(__dirname, file.path);
       fs.unlink(filePath, (err) => {
         if (err) {
           return res.status(500).json({ error: '文件删除失败' });
         }
-        db.query("DELETE FROM files WHERE id = ?", [file_id], (err) => {
+        db.query("DELETE FROM files WHERE id = $1", [file_id], (err) => {
           if (err) {
             return res.status(500).json({ error: err.message });
           }
@@ -189,9 +151,15 @@ router.delete('/files/:file_id', (req, res) => {
 // 下载文件
 router.get('/files/:file_id/download', (req, res) => {
   const { file_id } = req.params;
-  db.query("SELECT * FROM files WHERE id = ?", [file_id], (err, rows) => {
-    if (rows.length > 0) {
-      const file = rows[0];
+    db.query("SELECT * FROM files WHERE id = $1", [file_id], (err, results) => { // 修改了占位符
+    
+      if (err) {
+        console.log(err);
+        return res.status(500).json({ error: "database error" });
+      }
+
+      if (results.rows.length > 0) {
+      const file = results.rows[0];
       const filePath = path.join(__dirname, file.path);
       res.download(filePath, file.name, (err) => {
         if (err) {
@@ -227,7 +195,7 @@ router.post('/timeline', upload.single('attachment_path'), (req, res) => {
   }
 
   db.query(
-    "INSERT INTO card_timeLine (title, date, description, attachment_path) VALUES (?, ?, ?, ?)",
+    "INSERT INTO card_timeLine (title, date, description, attachment_path) VALUES ($1, $2, $3, $4)", // 修改了占位符
     [title, date, description, attachmentPath],
     (err, result) => {
       if (err) {
@@ -240,19 +208,19 @@ router.post('/timeline', upload.single('attachment_path'), (req, res) => {
 
 // 获取时间线事件
 router.get('/timeline', (req, res) => {
-  db.query("SELECT * FROM card_timeLine ORDER BY date ASC", (err, rows) => {
+  db.query("SELECT * FROM card_timeLine ORDER BY date ASC", (err, results) => {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
     
-    res.json(rows);
+    res.json(results.rows);
   });
 });
 
 // 下载时间线附件
 router.get('/timeline/:id/download', (req, res) => {
   const { id } = req.params;
-  db.query("SELECT * FROM card_timeLine WHERE id = ?", [id], (err, rows) => {
+  db.query("SELECT * FROM card_timeLine WHERE id = $1", [id], (err, rows) => { // 修改了占位符
     if (rows.length > 0) {
       const event = rows[0];
       if (event.attachment_path) {

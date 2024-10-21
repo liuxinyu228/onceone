@@ -11,7 +11,7 @@ class cardTaskTemplate {
             sql = 'SELECT * FROM card_task_template';
             params = [];
         } else {
-            sql = 'SELECT * FROM card_task_template where workClassification = ?';
+            sql = 'SELECT * FROM card_task_template WHERE work_classification = $1';
             params = [taskType];
         }
         connection.query(sql, params, callback);
@@ -21,11 +21,12 @@ class cardTaskTemplate {
     static addTask(taskInfo, callback) {
         const sql = `
             INSERT INTO card_task_template 
-            (title, work_classification, description, guide, created_at, updated_at, taskCategory) 
-            VALUES (?, ?, ?, ?, NOW(), NOW(), ?);
+            (title, work_classification, description, guide, created_at, updated_at, taskcategory) 
+            VALUES ($1, $2, $3, $4, NOW(), NOW(), $5)
+            RETURNING id;
         `;
-        const { title, work_classification, description, guide, taskCategory } = taskInfo;
-        connection.query(sql, [title, work_classification, description, guide, taskCategory], callback);
+        const { title, work_classification, description, guide, taskcategory } = taskInfo;
+        connection.query(sql, [title, work_classification, description, guide, taskcategory], callback);
     }
 
     // 更新任务
@@ -33,22 +34,22 @@ class cardTaskTemplate {
         const sql = `
             UPDATE card_task_template 
             SET
-                title = ?,
-                work_classification = ?,
-                description = ?,
-                guide = ?,
+                title = $1,  
+                work_classification = $2,
+                description = $3,
+                guide = $4,
                 updated_at = NOW(),
-                taskCategory = ?
+                taskcategory = $5
             WHERE 
-                id = ?;
+                id = $6;  
         `;
-        const { title, work_classification, description, guide, taskCategory } = updatedTaskInfo;
-        connection.query(sql, [title, work_classification, description, guide, taskCategory, id], callback);
+        const { title, work_classification, description, guide, taskcategory } = updatedTaskInfo;
+        connection.query(sql, [title, work_classification, description, guide, taskcategory, id], callback);
     }
 
     // 删除任务
     static deleteTaskById(id, callback) {
-        const sql = 'DELETE FROM card_task_template WHERE id = ?';
+        const sql = 'DELETE FROM card_task_template WHERE id = $1'; // 使用 $1 作为参数占位符
         connection.query(sql, [id], callback);
     }
 }
@@ -77,11 +78,11 @@ class cardTask {
                 ct.work_classification,
                 ct.description,
                 ct.guide,
-                ct.reportContent,
-                ct.materialPath,
-                ct.taskCategory,
-                DATE_FORMAT(ct.created_at, '%Y-%m-%d %H:%i') as created_at,
-                DATE_FORMAT(ct.updated_at, '%Y-%m-%d %H:%i') as updated_at
+                ct.reportcontent,
+                ct.materialpath,
+                ct.taskcategory,
+                TO_CHAR(ct.created_at, 'YYYY-MM-DD HH24:MI') as created_at, 
+                TO_CHAR(ct.updated_at, 'YYYY-MM-DD HH24:MI') as updated_at
             FROM 
                 card_task ct
             JOIN 
@@ -91,9 +92,9 @@ class cardTask {
             JOIN 
                 card_users cu ON ubm.user_businessSystem_list_id = cu.businessSystemListID
             WHERE 
-                cu.group_id = ?
-                AND cs.system_name = ?
-                AND ct.work_classification = ?;
+                cu.group_id = $1
+                AND cs.system_name = $2
+                AND ct.work_classification = $3;
         `;
 
         connection.query(query, [groupId, systemInfo.system_name, systemInfo.work_classification], callback);
@@ -103,19 +104,18 @@ class cardTask {
         const sql = `
             UPDATE card_task 
             SET
-                status = ? ,
-                reportContent = ?, 
-                riskValue = ?,
+                status = $1, 
+                reportcontent = $2, 
+                riskvalue = $3,
                 updated_at = NOW()
             WHERE 
-                id = ?;
+                id = $4; 
         `;
         const {
             status,
             reportContent, 
             riskValue
         } = updatedTaskInfo;
-
 
         connection.query(sql, [
             status,
@@ -140,9 +140,9 @@ class cardTask {
             JOIN card_system cs ON ct.task_id = cs.task_id
             JOIN user_businesssystem_map ubm ON cs.system_id = ubm.businessSystem_id
             JOIN card_users cu ON ubm.user_businessSystem_list_id = cu.businessSystemListID
-            WHERE cu.group_id = ?
-            AND cs.system_name = ?
-            AND ct.work_classification = ?;
+            WHERE cu.group_id = $1
+            AND cs.system_name = $2
+            AND ct.work_classification = $3;
         `;
 
         connection.query(getTaskIdQuery, [groupId, systemInfo.system_name, systemInfo.work_classification], (err, results) => {
@@ -150,26 +150,26 @@ class cardTask {
                 return callback(err);
             }
 
-            if (results.length === 0) {
+            if (results.rows.length === 0) {
                 return callback(new Error('No task_id found for the given parameters'));
             }
 
-            const taskId = results[0].task_id;
+            const taskId = results.rows[0].task_id;
 
             const insertTaskQuery = `
                 INSERT INTO card_task 
-                (task_id, title, status, work_classification, description, guide, taskCategory) 
-                VALUES (?, ?, ?, ?, ?, ?, ?);
+                (task_id, title, status, work_classification, description, guide, taskcategory) 
+                VALUES ($1, $2, $3, $4, $5, $6, $7);
             `;
-            const { title, status, description, guide, taskCategory } = AddtaskInfo;
-            connection.query(insertTaskQuery, [taskId, title, status, systemInfo.work_classification, description, guide, taskCategory], callback);
+            const { title, status, description, guide, taskcategory } = AddtaskInfo;
+            connection.query(insertTaskQuery, [taskId, title, status, systemInfo.work_classification, description, guide, taskcategory], callback);
         });
     }
 
-    static getTaskByCategory(Category,callback){
+    static getTaskByCategory(Category, callback) {
         const query = `
-            SELECT id, title ,description ,status FROM card_task WHERE taskCategory = ?;
-        `
+            SELECT id, title, description, status FROM card_task WHERE taskcategory = $1; 
+        `;
         connection.query(query, [Category], callback);
     }
 }

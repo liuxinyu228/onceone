@@ -171,7 +171,7 @@
         try {
           const response = await axios.get(`${config.getSetting('API_BASE_URL')}/api/admin/getUserWorks`, { withCredentials: true })
           systems.value = response.data.map(task => {
-            const taskDetails = JSON.parse(task.tasks)
+            const taskDetails = task.tasks
             const totalTasks = taskDetails.length
             const completedTasks = taskDetails.filter(t => t.status === '已完成').length
             const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
@@ -250,9 +250,9 @@
           .catch(error => {
             console.error('Error adding task:', error);
           })
-
+        
+        newTask.value.responsible = data.username
         systems.value.push({
-          id: systems.value.length + 1,
           ...newTask.value,
           status: '未开始',
           progress: 0,

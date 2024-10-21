@@ -17,9 +17,9 @@ router.get('/getUserWorks', async (req, res) => {
                 card_system.superintendent_email,
                 card_users.username, 
                 card_users.id as user_id,
-                DATE_FORMAT(card_system.end_at, '%Y-%m-%d') AS end_at, 
+                TO_CHAR(card_system.end_at, 'YYYY-MM-DD') AS end_at, 
                 card_system.work_classification, 
-                JSON_ARRAYAGG(JSON_OBJECT('id', card_task.id, 'status', card_task.status)) AS tasks
+                JSON_AGG(JSON_BUILD_OBJECT('id', card_task.id, 'status', card_task.status)) AS tasks
             FROM 
                 card_users
             JOIN 
@@ -47,7 +47,7 @@ router.get('/getUserWorks', async (req, res) => {
             }
 
             console.log("Query result:", JSON.stringify(results, null, 2));
-            res.json(results);
+            res.json(results.rows);
         });
     } catch (error) {
         console.error('Unexpected error:', error);
@@ -71,7 +71,7 @@ router.get('/getWorkers', async (req, res) => {
                 return res.status(500).json({ status: false, message: 'Server Error' });
             }
 
-            res.json({ status: true, data: results });
+            res.json({ status: true, data: results.rows });
         });
     } catch (error) {
         console.error('Unexpected error:', error);
@@ -89,15 +89,16 @@ router.post('/addUserWork', (req, res) => {
         JOIN card_system cs ON ct.task_id = cs.task_id
         JOIN user_businesssystem_map ubm ON cs.system_id = ubm.businessSystem_id
         JOIN card_users cu ON ubm.user_businessSystem_list_id = cu.businessSystemListID
-        WHERE ubm.group_id = ? AND cs.system_name = ? AND ct.work_classification = ?;
+        WHERE ubm.group_id = $1 AND cs.system_name = $2 AND ct.work_classification = $3;
     `;
 
     db.query(checkQuery, [groupId, businessSystemName, workClassification], (err, results) => {
         if (err) {
+            console.log(err);
             return res.status(500).json({ error: err.message });
         }
 
-        if (results.length > 0) {
+        if (results.rows.length > 0) {
             return res.status(400).json({ error: 'Evaluation system with the same name and task type already exists in the group' });
         }
 
@@ -106,85 +107,96 @@ router.post('/addUserWork', (req, res) => {
         // 在 card_system 中创建评估系统记录
         const insertSystemQuery = `
             INSERT INTO card_system (system_name, superintendent_name, superintendent_phone, superintendent_email, work_classification, task_id, end_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?);
+            VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING system_id;
         `;
 
         db.query(insertSystemQuery, [businessSystemName, superintendentName, superintendentPhone, superintendentEmail, workClassification, taskId, endAt], (err, result) => {
             if (err) {
+                console.log(err);
                 return res.status(500).json({ error: err.message });
             }
 
-            const systemId = result.insertId;
+            const systemId = result.rows[0].system_id;
 
             // 将创建的评估系统记录与 card_users 中对应的用户进行关联
             const insertUserSystemMapQuery = `
                 INSERT INTO user_businesssystem_map (user_businessSystem_list_id, businessSystem_id, group_id)
                 SELECT 
-                    CASE 
-                        WHEN businessSystemListID IS NULL THEN ? 
-                        ELSE businessSystemListID 
-                    END, 
-                    ? ,
-                    ?
+                    COALESCE(businessSystemListID, $1), 
+                    $2,
+                    $3
                 FROM card_users 
-                WHERE username = ?;
+                WHERE username = $4;
             `;
 
             const newBusinessSystemListID = uuidv4();
 
             db.query(insertUserSystemMapQuery, [newBusinessSystemListID, systemId, groupId, username], (err) => {
                 if (err) {
+                    console.log(err);
                     return res.status(500).json({ error: err.message });
                 }
 
                 // 更新 card_users 表中的 businessSystemListID 字段
                 const updateUserBusinessSystemListIDQuery = `
                     UPDATE card_users
-                    SET businessSystemListID = ?
-                    WHERE username = ? AND businessSystemListID IS NULL;
+                    SET businessSystemListID = $1
+                    WHERE username = $2 AND businessSystemListID IS NULL;
                 `;
 
                 db.query(updateUserBusinessSystemListIDQuery, [newBusinessSystemListID, username], (err) => {
                     if (err) {
+                        console.log(err);
                         return res.status(500).json({ error: err.message });
                     }
 
                     // 根据 workClassification 参数的值在 card_task_template 表中查询出对应的任务
                     const selectTaskTemplateQuery = `
-                        SELECT * FROM card_task_template WHERE work_classification = ?;
+                        SELECT * FROM card_task_template WHERE work_classification = $1;
                     `;
 
                     db.query(selectTaskTemplateQuery, [workClassification], (err, taskTemplates) => {
                         if (err) {
+                            console.log(err);
                             return res.status(500).json({ error: err.message });
                         }
 
                         // 在 card_task 表中新增对应记录，并关联 task_id
                         const insertTaskQuery = `
-                            INSERT INTO card_task (status, title, work_classification, description, guide, reportContent, materialPath, taskCategory, created_at, updated_at, task_id)
-                            VALUES ?;
+                            INSERT INTO card_task (status, title, work_classification, description, guide, taskcategory, created_at, updated_at, task_id, template_id)
+                            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
                         `;
 
-                        const taskValues = taskTemplates.map(task => [
-                            '进行中',
-                            task.title,
-                            task.work_classification,
-                            task.description,
-                            task.guide,
-                            task.reportContent,
-                            task.materialPath,
-                            task.taskCategory,
-                            new Date(),
-                            new Date(),
-                            taskId // 关联 task_id
-                        ]);
+                        // 使用批量插入
+                        const insertValues = [];
+                        const placeholders = [];
 
-                        db.query(insertTaskQuery, [taskValues], (err) => {
+                        taskTemplates.rows.forEach((task, index) => {
+                            insertValues.push(
+                                '进行中',
+                                task.title, // title
+                                task.work_classification, // work_classification
+                                task.description, // description
+                                task.guide, // guide
+                                task.taskcategory, // taskcategory
+                                new Date(), // created_at
+                                new Date(), // updated_at
+                                taskId, // task_id
+                                task.id // template_id
+                            );
+
+                            // 计算占位符
+                            const offset = index * 10;
+                            placeholders.push(`($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10})`);
+                        });
+
+                        db.query(`INSERT INTO card_task (status, title, work_classification, description, guide, taskcategory, created_at, updated_at, task_id, template_id) VALUES ${placeholders.join(', ')}`, insertValues, (err) => {
                             if (err) {
+                                console.log(err);
                                 return res.status(500).json({ error: err.message });
                             }
 
-                            res.status(200).json({ message: 'Evaluation system and tasks added successfully' });
+                            res.status(200).json({ message: '已成功添加评估系统和任务' });
                         });
                     });
                 });
@@ -201,34 +213,34 @@ router.delete('/deleteUserWork', (req, res) => {
         return res.status(400).json({ error: 'System ID is required' });
     }
 
-    // 删除与评估系统相关的任务
-    const deleteTasksQuery = `
-        DELETE FROM card_task WHERE task_id IN (
-            SELECT task_id FROM card_system WHERE system_id = ?
-        );
+    // 删除用户与评估系系统的关联
+    const deleteUserSystemMapQuery = `
+        DELETE FROM user_businesssystem_map WHERE businessSystem_id = $1;
     `;
 
-    db.query(deleteTasksQuery, [systemId], (err) => {
+    db.query(deleteUserSystemMapQuery, [systemId], (err) => {
         if (err) {
             return res.status(500).json({ error: err.message });
         }
 
-        // 删除评估系统
-        const deleteSystemQuery = `
-            DELETE FROM card_system WHERE system_id = ?;
+        // 删除与评估系统相关的任务
+        const deleteTasksQuery = `
+            DELETE FROM card_task WHERE task_id IN (
+                SELECT task_id FROM card_system WHERE system_id = $1
+            );
         `;
 
-        db.query(deleteSystemQuery, [systemId], (err) => {
+        db.query(deleteTasksQuery, [systemId], (err) => {
             if (err) {
                 return res.status(500).json({ error: err.message });
             }
 
-            // 删除用户与评估系统的关联
-            const deleteUserSystemMapQuery = `
-                DELETE FROM user_businesssystem_map WHERE businessSystem_id = ?;
+            // 删除评估系统
+            const deleteSystemQuery = `
+                DELETE FROM card_system WHERE system_id = $1;
             `;
 
-            db.query(deleteUserSystemMapQuery, [systemId], (err) => {
+            db.query(deleteSystemQuery, [systemId], (err) => {
                 if (err) {
                     return res.status(500).json({ error: err.message });
                 }
@@ -242,11 +254,11 @@ router.delete('/deleteUserWork', (req, res) => {
 // 新增接口：修改评估系统
 router.put('/updateUserWork', (req, res) => {
     const { systemId, userId, businessSystemName, superintendentName, superintendentPhone, superintendentEmail, workClassification, endAt } = req.body;
-    let changeuserBusinessSystemListID = ""
+    let changeuserBusinessSystemListID = "";
     if (!systemId || !userId) {
         return res.status(400).json({ error: 'System ID and User ID are required' });
     }
-    console.log(systemId, userId, businessSystemName)
+    console.log(systemId, userId, businessSystemName);
 
     // 查询当前 system_id 所属的用户
     const checkUserQuery = `
@@ -254,7 +266,7 @@ router.put('/updateUserWork', (req, res) => {
         FROM card_system cs
         JOIN user_businesssystem_map ubm ON cs.system_id = ubm.businessSystem_id
         JOIN card_users cu ON ubm.user_businessSystem_list_id = cu.businessSystemListID
-        WHERE cs.system_id = ?;
+        WHERE cs.system_id = $1;
     `;
 
     db.query(checkUserQuery, [systemId], (err, results) => {
@@ -262,15 +274,15 @@ router.put('/updateUserWork', (req, res) => {
             return res.status(500).json({ error: err.message });
         }
 
-        if (results.length === 0) {
+        if (results.rows.length === 0) {
             return res.status(404).json({ error: 'System not found' });
         }
 
-        const currentUserId = results[0].currentUserId;
+        const currentUserId = results.rows[0].currentuserid;
 
         // 查询并检查 userId 对应的 businessSystemListID 是否为空
         const checkchangeUserBusinessSystemListIDQuery = `
-            SELECT businessSystemListID FROM card_users WHERE id = ?;
+            SELECT businessSystemListID FROM card_users WHERE id = $1;
         `;
 
         db.query(checkchangeUserBusinessSystemListIDQuery, [userId], (err, userResults) => {
@@ -278,20 +290,20 @@ router.put('/updateUserWork', (req, res) => {
                 return res.status(500).json({ error: err.message });
             }
 
-            if (userResults.length > 0 && !userResults[0].businessSystemListID) {
+            if (userResults.rows.length > 0 && !userResults.rows[0].businesssystemlistid) {
                 changeuserBusinessSystemListID = uuidv4();
                 const updateUserBusinessSystemListIDQuery = `
                     UPDATE card_users
-                    SET businessSystemListID = ?
-                    WHERE id = ?;
+                    SET businessSystemListID = $1
+                    WHERE id = $2;
                 `;
                 db.query(updateUserBusinessSystemListIDQuery, [changeuserBusinessSystemListID, userId], (err) => {
                     if (err) {
                         return res.status(500).json({ error: err.message });
                     }
                 });
-            }else{
-                changeuserBusinessSystemListID = userResults[0].businessSystemListID
+            } else {
+                changeuserBusinessSystemListID = userResults.rows[0].businesssystemlistid;
             }
 
             // 如果用户不同，更新 user_businesssystem_map 表
@@ -299,9 +311,9 @@ router.put('/updateUserWork', (req, res) => {
                 const updateUserSystemMapQuery = `
                     UPDATE user_businesssystem_map
                     SET 
-                        user_businessSystem_list_id = ?,
-                        group_id = (SELECT group_id FROM card_users WHERE id = ?)
-                    WHERE businessSystem_id = ?;
+                        user_businessSystem_list_id = $1,
+                        group_id = (SELECT group_id FROM card_users WHERE id = $2)
+                    WHERE businessSystem_id = $3;
                 `;
 
                 db.query(updateUserSystemMapQuery, [changeuserBusinessSystemListID, userId, systemId], (err) => {
@@ -314,8 +326,8 @@ router.put('/updateUserWork', (req, res) => {
             // 更新 card_system 表中的信息
             const updateSystemQuery = `
                 UPDATE card_system
-                SET system_name = ?, superintendent_name = ?, superintendent_phone = ?, superintendent_email = ?, work_classification = ?, end_at = ?
-                WHERE system_id = ?;
+                SET system_name = $1, superintendent_name = $2, superintendent_phone = $3, superintendent_email = $4, work_classification = $5, end_at = $6
+                WHERE system_id = $7;
             `;
 
             db.query(updateSystemQuery, [businessSystemName, superintendentName, superintendentPhone, superintendentEmail, workClassification, endAt, systemId], (err) => {
@@ -347,13 +359,13 @@ router.post('/addUser', (req, res) => {
     user.password = generateRandomPassword();
 
     // 查询是否有已存在的用户名
-    const query = 'SELECT * FROM card_users WHERE username = ?';
+    const query = 'SELECT * FROM card_users WHERE username = $1'; // 使用 $1 作为参数占位符
     db.query(query, [user.username], (err, results) => {
         if (err) {
             return res.status(500).json({ message: 'Database error', error: err });
         }
 
-        if (results.length > 0) {
+        if (results.rows.length > 0) { // PostgreSQL 中使用 rows
             return res.status(400).json({ message: 'Username already exists' });
         }
 
@@ -373,7 +385,7 @@ router.get('/getAllUsers', (req, res) => {
         if (err) {
             return res.status(500).json({ message: 'Database error', error: err });
         }
-        res.json(users);
+        res.json(users.rows);
     });
 });
 
@@ -399,7 +411,7 @@ router.post('/lockUser', (req, res) => {
     const { id } = req.body;
 
     // 查询用户当前状态
-    const query = 'SELECT status FROM card_users WHERE id = ?';
+    const query = 'SELECT status FROM card_users WHERE id = $1';
     db.query(query, [id], (err, results) => {
         if (err) {
             return res.status(500).json({ message: '服务器错误！', error: err });
@@ -444,7 +456,7 @@ router.delete('/deleteUser', (req, res) => {
         DELETE FROM card_task WHERE task_id IN (
             SELECT task_id FROM card_system WHERE system_id IN (
                 SELECT businessSystem_id FROM user_businesssystem_map WHERE user_businessSystem_list_id = (
-                    SELECT businessSystemListID FROM card_users WHERE id = ?
+                    SELECT businessSystemListID FROM card_users WHERE id = $1
                 )
             )
         );
@@ -459,7 +471,7 @@ router.delete('/deleteUser', (req, res) => {
         const deleteUserSystemsQuery = `
             DELETE FROM card_system WHERE system_id IN (
                 SELECT businessSystem_id FROM user_businesssystem_map WHERE user_businessSystem_list_id = (
-                    SELECT businessSystemListID FROM card_users WHERE id = ?
+                    SELECT businessSystemListID FROM card_users WHERE id = $1
                 )
             );
         `;
@@ -472,7 +484,7 @@ router.delete('/deleteUser', (req, res) => {
             // 删除 user_businesssystem_map 表中的绑定关系
             const deleteUserSystemMapQuery = `
                 DELETE FROM user_businesssystem_map WHERE user_businessSystem_list_id = (
-                    SELECT businessSystemListID FROM card_users WHERE id = ?
+                    SELECT businessSystemListID FROM card_users WHERE id = $1
                 );
             `;
 
@@ -500,7 +512,7 @@ router.get('/taskTemplate/:taskType', (req, res) => {
         if (err) {
             res.status(500).json({ error: err.message });
         } else {
-            res.status(200).json(results);
+            res.status(200).json(results.rows);
         }
     });
 });
@@ -511,10 +523,12 @@ router.post('/taskTemplate', (req, res) => {
 
     cardTaskTemplate.addTask(taskInfo, (err, result) => {
         if (err) {
+            console.log(err);
             return res.status(500).json({ error: err.message });
         }
 
-        const taskTemplateId = result.insertId;
+        const taskTemplateId = result.rows[0].id;
+        console.log("taskTemplateId",taskTemplateId);
 
         // 查询所有任务并按 task_id 分组，确保不违反 SQL 的 only_full_group_by 模式
         const selectTasksQuery = `
@@ -523,11 +537,12 @@ router.post('/taskTemplate', (req, res) => {
 
         db.query(selectTasksQuery, (err, tasks) => {
             if (err) {
+                console.log(err);
                 return res.status(500).json({ error: err.message });
             }
 
             // 筛选需要新增任务的组
-            const taskValues = tasks
+            const taskValues = tasks.rows
                 .filter(task => task.work_classification === taskInfo.work_classification)
                 .map(task => [
                     '进行中',
@@ -537,7 +552,7 @@ router.post('/taskTemplate', (req, res) => {
                     taskInfo.guide,
                     taskInfo.reportContent,
                     taskInfo.materialPath,
-                    taskInfo.taskCategory,
+                    taskInfo.taskcategory,
                     new Date(),
                     new Date(),
                     task.task_id, // 关联 task_id
@@ -550,13 +565,18 @@ router.post('/taskTemplate', (req, res) => {
 
             // 为每一个符合条件的组新增任务
             const insertTaskQuery = `
-                INSERT INTO card_task (status, title, work_classification, description, guide, reportContent, materialPath, taskCategory, created_at, updated_at, task_id, template_id)
-                VALUES ?;
+                INSERT INTO card_task (status, title, work_classification, description, guide, reportContent, materialPath, taskcategory, created_at, updated_at, task_id, template_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);
             `;
 
-            db.query(insertTaskQuery, [taskValues], (err) => {
+            // 使用批量插入
+            const insertValues = taskValues.flat();
+            const placeholders = taskValues.map((_, i) => `($${i * 12 + 1}, $${i * 12 + 2}, $${i * 12 + 3}, $${i * 12 + 4}, $${i * 12 + 5}, $${i * 12 + 6}, $${i * 12 + 7}, $${i * 12 + 8}, $${i * 12 + 9}, $${i * 12 + 10}, $${i * 12 + 11}, $${i * 12 + 12})`).join(', ');
+
+            db.query(`INSERT INTO card_task (status, title, work_classification, description, guide, reportContent, materialPath, taskcategory, created_at, updated_at, task_id, template_id) VALUES ${placeholders}`, insertValues, (err) => {
                 if (err) {
                     return res.status(500).json({ error: err.message });
+                    console.log(err);
                 }
 
                 res.status(201).json({ message: '任务模板添加成功', taskId: taskTemplateId });
@@ -578,15 +598,15 @@ router.post('/updateTaskTemplate/:id', (req, res) => {
         // 更新 card_task 表中与 template_id 相关的记录
         const updateTaskQuery = `
             UPDATE card_task
-            SET title = ?, description = ?, guide = ?, taskCategory = ?
-            WHERE template_id = ?;
+            SET title = $1, description = $2, guide = $3, taskcategory = $4
+            WHERE template_id = $5;
         `;
 
         const updateValues = [
             updatedTaskInfo.title,
             updatedTaskInfo.description,
             updatedTaskInfo.guide,
-            updatedTaskInfo.taskCategory,
+            updatedTaskInfo.taskcategory,
             taskTemplateId // 关联 template_id
         ];
 
@@ -606,7 +626,7 @@ router.delete('/taskTemplate/', (req, res) => {
 
     // 先删除 card_task 中与 template_id 相关的记录
     const deleteTasksQuery = `
-        DELETE FROM card_task WHERE template_id = ?;
+        DELETE FROM card_task WHERE template_id = $1;
     `;
 
     db.query(deleteTasksQuery, [taskTemplateId], (err) => {

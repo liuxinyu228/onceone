@@ -12,8 +12,8 @@ const multer = require('multer');
 // 新增接口：查询用户下所有评估业务系统
 router.get('/userWorks', (req, res) => { 
     const username = req.session.userId; // 从 session 中获取用户名
-    const groupId = req.session.groupId; // 从查询参数中获取 group_id
-    const personaId = req.session.personaId; // 从查询参数中获取 persona_id
+    const groupId = req.session.groupId; // 从 session 中获取 group_id
+    const personaId = req.session.personaId; // 从 session 中获取 persona_id
 
     if (!username) {
         return res.status(401).json({ message: 'User not logged in' });
@@ -24,13 +24,13 @@ router.get('/userWorks', (req, res) => {
         SELECT cs.system_name, cs.work_classification, cs.superintendent_name, cs.created_at
         FROM card_system cs
         JOIN user_businesssystem_map ubm ON cs.system_id = ubm.businessSystem_id
-        WHERE ubm.group_id = ?
+        WHERE ubm.group_id = $1
     `;
 
     const queryParams = [groupId];
 
     if (personaId == 707) {
-        query += ' AND cs.superintendent_name = ?';
+        query += ' AND cs.superintendent_name = $2';
         queryParams.push(username);
     }
 
@@ -42,8 +42,8 @@ router.get('/userWorks', (req, res) => {
             res.status(500).json({ error: err.message });
         } else {
             res.status(200).json({
-                data: results,
-                total: results.length
+                data: results.rows,
+                total: results.rowCount
             });
         }
     });
@@ -66,22 +66,23 @@ router.get('/userWorkTasks', (req, res) => {
         if (err) {
             return res.status(500).json({ error: err.message });
         } else {
-            // 处理 materialPath 字段
-            results.forEach(task => {
-                if (task.materialPath) {
+            // 处理 materialpath 字段
+            results.rows.forEach(task => {
+                if (task.materialpath) {
                     try {
-                        const materialPaths = JSON.parse(task.materialPath);
-                        task.materialPath = materialPaths.map(item => ({
+                        const materialpaths = task.materialpath;
+                        task.materialpath = materialpaths.map(item => ({
                             ...item,
                             path: path.basename(item.path)
                         }));
                     } catch (e) {
-                        task.materialPath = [];
+                        console.log(e);
+                        task.materialpath = [];
                     }
                 }
             });
 
-            return res.status(200).json(results);
+            return res.status(200).json(results.rows);
         }
     });
 });
@@ -113,7 +114,7 @@ router.post('/addUserWorkTask', (req, res) => {
 // 新增接口：新增评估系统
 router.post('/addUserWork', (req, res) => {
     const username = req.session.userId; // 从 session 中获取用户名
-    const groupId = req.session.groupId
+    const groupId = req.session.groupId;
 
     if (!username) {
         return res.status(401).json({ message: 'User not logged in' });
@@ -123,7 +124,7 @@ router.post('/addUserWork', (req, res) => {
 
     // 先查询 card_task_template 中是否存在对应的 workClassification
     const checkTemplateQuery = `
-        SELECT * FROM card_task_template WHERE work_classification = ?;
+        SELECT * FROM card_task_template WHERE work_classification = $1;
     `;
 
     db.query(checkTemplateQuery, [workClassification], (err, templates) => {
@@ -131,7 +132,7 @@ router.post('/addUserWork', (req, res) => {
             return res.status(500).json({ error: err.message });
         }
 
-        if (templates.length === 0) {
+        if (templates.rows.length === 0) {
             return res.status(400).json({ message: '请通知管理员新增任务模板' });
         }
 
@@ -141,7 +142,7 @@ router.post('/addUserWork', (req, res) => {
             JOIN card_system cs ON ct.task_id = cs.task_id
             JOIN user_businesssystem_map ubm ON cs.system_id = ubm.businessSystem_id
             JOIN card_users cu ON ubm.user_businessSystem_list_id = cu.businessSystemListID
-            WHERE ubm.group_id = ? AND cs.system_name = ? AND ct.work_classification = ?;
+            WHERE ubm.group_id = $1 AND cs.system_name = $2 AND ct.work_classification = $3;
         `;
 
         db.query(checkQuery, [groupId, businessSystemName, workClassification], (err, results) => {
@@ -149,7 +150,7 @@ router.post('/addUserWork', (req, res) => {
                 return res.status(500).json({ error: err.message });
             }
 
-            if (results.length > 0) {
+            if (results.rows.length > 0) {
                 return res.status(400).json({ message: 'Evaluation system with the same name and task type already exists in the group' });
             }
 
@@ -158,7 +159,7 @@ router.post('/addUserWork', (req, res) => {
             // 在 card_system 中创建评估系统记录
             const insertSystemQuery = `
                 INSERT INTO card_system (system_name, superintendent_name, superintendent_phone, superintendent_email, work_classification, task_id, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?);
+                VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING system_id;
             `;
 
             db.query(insertSystemQuery, [businessSystemName, superintendentName, superintendentPhone, superintendentEmail, workClassification, taskId, creationDate], (err, result) => {
@@ -166,20 +167,17 @@ router.post('/addUserWork', (req, res) => {
                     return res.status(500).json({ error: err.message });
                 }
 
-                const systemId = result.insertId;
+                const systemId = result.rows[0].system_id;
 
                 // 将创建的评估系统记录与 card_users 中对应的用户进行关联
                 const insertUserSystemMapQuery = `
                     INSERT INTO user_businesssystem_map (user_businessSystem_list_id, businessSystem_id, group_id)
                     SELECT 
-                        CASE 
-                            WHEN businessSystemListID IS NULL THEN ? 
-                            ELSE businessSystemListID 
-                        END, 
-                        ?,
-                        ?
+                        COALESCE(businessSystemListID, $1), 
+                        $2,
+                        $3
                     FROM card_users 
-                    WHERE username = ?;
+                    WHERE username = $4;
                 `;
 
                 const newBusinessSystemListID = uuidv4();
@@ -192,8 +190,8 @@ router.post('/addUserWork', (req, res) => {
                     // 更新 card_users 表中的 businessSystemListID 字段
                     const updateUserBusinessSystemListIDQuery = `
                         UPDATE card_users
-                        SET businessSystemListID = ?
-                        WHERE username = ? AND businessSystemListID IS NULL;
+                        SET businessSystemListID = $1
+                        WHERE username = $2 AND businessSystemListID IS NULL;
                     `;
 
                     db.query(updateUserBusinessSystemListIDQuery, [newBusinessSystemListID, username], (err) => {
@@ -203,7 +201,7 @@ router.post('/addUserWork', (req, res) => {
 
                         // 根据 workClassification 参数的值在 card_task_template 表中查询出对应的任务
                         const selectTaskTemplateQuery = `
-                            SELECT * FROM card_task_template WHERE work_classification = ?;
+                            SELECT * FROM card_task_template WHERE work_classification = $1;
                         `;
 
                         db.query(selectTaskTemplateQuery, [workClassification], (err, taskTemplates) => {
@@ -213,18 +211,18 @@ router.post('/addUserWork', (req, res) => {
 
                             // 在 card_task 表中新增对应记录，并关联 task_id
                             const insertTaskQuery = `
-                                INSERT INTO card_task (status, title, work_classification, description, guide, reportContent, materialPath, taskCategory, created_at, updated_at, task_id, template_id)
-                                VALUES ?;
+                                INSERT INTO card_task (status, title, work_classification, description, guide, reportContent, materialpath, taskCategory, created_at, updated_at, task_id, template_id)
+                                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);
                             `;
 
-                            const taskValues = taskTemplates.map(task => [
+                            const taskValues = taskTemplates.rows.map(task => [
                                 '进行中',
                                 task.title,
                                 task.work_classification,
                                 task.description,
                                 task.guide,
                                 task.reportContent,
-                                task.materialPath,
+                                task.materialpath,
                                 task.taskCategory,
                                 new Date(),
                                 new Date(),
@@ -232,7 +230,10 @@ router.post('/addUserWork', (req, res) => {
                                 task.id // 关联 template_id
                             ]);
 
-                            db.query(insertTaskQuery, [taskValues], (err) => {
+                            // 使用批量插入
+                            const insertTaskValues = taskValues.map((_, i) => `($${i * 12 + 1}, $${i * 12 + 2}, $${i * 12 + 3}, $${i * 12 + 4}, $${i * 12 + 5}, $${i * 12 + 6}, $${i * 12 + 7}, $${i * 12 + 8}, $${i * 12 + 9}, $${i * 12 + 10}, $${i * 12 + 11}, $${i * 12 + 12})`).join(', ');
+
+                            db.query(insertTaskQuery.replace('VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)', `VALUES ${insertTaskValues}`), taskValues.flat(), (err) => {
                                 if (err) {
                                     return res.status(500).json({ error: err.message });
                                 }
@@ -272,12 +273,12 @@ router.post('/getTaskByCategory',(req,res)=>{
         if(err){
             return res.status(500).json({error:err.message});
         }else{
-            return res.status(200).json(results);
+            return res.status(200).json(results.rows);
         }
     })
 })
 
-// 新增接口：根据任务ID修改materialPath值，并且存储文件到项目根目录下的uploads/system_name/work_classification目录下
+// 新增接口：根据任务ID修改materialpath值，并且存储文件到项目根目录下的uploads/system_name/work_classification目录下
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         const uploadDir = path.join(__dirname, '../../uploads/temp');
@@ -296,7 +297,7 @@ router.post('/updateTaskMaterial/:id', upload.single('file'), (req, res) => {
     const taskId = req.params.id;
     const personaId = req.session.personaId; // 获取 persona_id
     const MAX_MATERIAL_LEN = 6;
-    const resultMaterialPath = [];
+    const resultmaterialpath = [];
 
     if (personaId == 707) {
         return res.status(403).json({ message: 'Permission denied' });
@@ -314,9 +315,9 @@ router.post('/updateTaskMaterial/:id', upload.single('file'), (req, res) => {
 
     const decodedFileName = Buffer.from(req.file.originalname, 'latin1').toString('utf8'); // 处理文件名称为中文的情况
 
-    // 查询当前 materialPath 的内容
+    // 查询当前 materialpath 的内容
     const selectQuery = `
-        SELECT title,materialPath FROM card_task WHERE id = ?;
+        SELECT title, materialpath FROM card_task WHERE id = $1;
     `;
 
     db.query(selectQuery, [taskId], (err, results) => {
@@ -325,32 +326,32 @@ router.post('/updateTaskMaterial/:id', upload.single('file'), (req, res) => {
             return res.status(500).json({ error: err.message });
         }
 
-        let currentMaterialPath = [];
-        if (results.length > 0 && results[0].materialPath) {
+        let currentmaterialpath = [];
+        if (results.rows.length > 0 && results.rows[0].materialpath) {
             try {
-                currentMaterialPath = JSON.parse(results[0].materialPath);
+                currentmaterialpath = JSON.parse(results.rows[0].materialpath);
             } catch (e) {
-                currentMaterialPath = [];
+                currentmaterialpath = [];
             }
         }
 
         // 检查文件名是否已存在
-        const fileNameExists = currentMaterialPath.some(item => path.basename(item.path) === decodedFileName);
+        const fileNameExists = currentmaterialpath.some(item => path.basename(item.path) === decodedFileName);
         if (fileNameExists) {
             fs.unlinkSync(req.file.path); // 删除临时文件
             return res.status(400).json({ message: 'File name already exists' });
         }
 
         // 检查长度限制
-        if (currentMaterialPath.length >= MAX_MATERIAL_LEN) {
+        if (currentmaterialpath.length >= MAX_MATERIAL_LEN) {
             fs.unlinkSync(req.file.path); // 删除临时文件
             return res.status(400).json({ message: 'Material path limit exceeded' });
         }
 
         // 确定最终的上传目录
         const { system_name, work_classification } = JSON.parse(Util.decrypt(req.cookies.taskInfo));
-        console.log("uploadfile system_name:",system_name)
-        const finalDir = path.join(__dirname, '../../uploads/works', system_name, work_classification, results[0].title);
+        console.log("uploadfile system_name:", system_name);
+        const finalDir = path.join(__dirname, '../../uploads/works', system_name, work_classification, results.rows[0].title);
         fs.mkdirSync(finalDir, { recursive: true });
 
         // 重命名文件到最终目录
@@ -359,24 +360,24 @@ router.post('/updateTaskMaterial/:id', upload.single('file'), (req, res) => {
 
         // 使用 uuid 生成唯一的 id
         const newId = uuidv4();
-        currentMaterialPath.push({ id: newId, path: path.relative(path.join(__dirname, '../../'), finalPath) });
+        currentmaterialpath.push({ id: newId, path: path.relative(path.join(__dirname, '../../'), finalPath) });
 
         const updateQuery = `
             UPDATE card_task
-            SET materialPath = ?
-            WHERE id = ?;
+            SET materialpath = $1
+            WHERE id = $2;
         `;
 
-        db.query(updateQuery, [JSON.stringify(currentMaterialPath), taskId], (err) => {
+        db.query(updateQuery, [JSON.stringify(currentmaterialpath), taskId], (err) => {
             if (err) {
                 return res.status(500).json({ error: err.message });
             }
 
-            for (const material of currentMaterialPath) {
-                resultMaterialPath.push({ id: material.id, path: path.basename(material.path) });
+            for (const material of currentmaterialpath) {
+                resultmaterialpath.push({ id: material.id, path: path.basename(material.path) });
             }
 
-            res.status(200).json({ taskId: taskId, filePath: resultMaterialPath });
+            res.status(200).json({ taskId: taskId, filePath: resultmaterialpath });
         });
     });
 });
@@ -385,9 +386,8 @@ router.post('/updateTaskMaterial/:id', upload.single('file'), (req, res) => {
 router.get('/downloadTaskMaterial/:id', (req, res) => {
     const taskId = req.params.id;
     const fileId = req.query.fileId; // 假设通过查询参数传递文件ID
-
     const query = `
-        SELECT materialPath FROM card_task WHERE id = ?;
+        SELECT materialpath FROM card_task WHERE id = $1;
     `;
 
     db.query(query, [taskId], (err, results) => {
@@ -395,19 +395,22 @@ router.get('/downloadTaskMaterial/:id', (req, res) => {
             return res.status(500).json({ error: err.message });
         }
 
-        if (results.length === 0) {
+        if (results.rows.length === 0) {
             return res.status(404).json({ message: 'Task not found' });
         }
 
-        let materialPath = [];
+        let materialpath = [];
+        console.log("results.rows[0].materialpath:", results.rows[0].materialpath);
         try {
-            materialPath = JSON.parse(results[0].materialPath);
+            materialpath = results.rows[0].materialpath;
         } catch (e) {
-            return res.status(500).json({ error: 'Failed to parse materialPath' });
+            console.log(e);
+            return res.status(500).json({ error: 'Failed to parse materialpath' });
         }
-
+        
+        console.log("materialpath:", materialpath);
         // 找到要下载的文件
-        const fileToDownload = materialPath.find(item => item.id === fileId);
+        const fileToDownload = materialpath.find(item => item.id === fileId);
         if (!fileToDownload) {
             return res.status(404).json({ message: 'File not found' });
         }
@@ -429,9 +432,9 @@ router.post('/removeTaskMaterial/:taskId', (req, res) => {
     const taskId = req.params.taskId;
     const fileId = req.body.fileId; // 从请求体中获取要移除的文件ID
 
-    // 查询当前 materialPath 的内容
+    // 查询当前 materialpath 的内容
     const selectQuery = `
-        SELECT materialPath FROM card_task WHERE id = ?;
+        SELECT materialpath FROM card_task WHERE id = $1;
     `;
 
     db.query(selectQuery, [taskId], (err, results) => {
@@ -439,17 +442,17 @@ router.post('/removeTaskMaterial/:taskId', (req, res) => {
             return res.status(500).json({ error: err.message });
         }
 
-        let currentMaterialPath = [];
-        if (results.length > 0 && results[0].materialPath) {
+        let currentmaterialpath = [];
+        if (results.rows.length > 0 && results.rows[0].materialpath) {
             try {
-                currentMaterialPath = JSON.parse(results[0].materialPath);
+                currentmaterialpath = JSON.parse(results.rows[0].materialpath);
             } catch (e) {
-                return res.status(500).json({ error: 'Failed to parse materialPath' });
+                return res.status(500).json({ error: 'Failed to parse materialpath' });
             }
         }
 
         // 找到要删除的文件
-        const fileToRemove = currentMaterialPath.find(item => item.id === fileId);
+        const fileToRemove = currentmaterialpath.find(item => item.id === fileId);
         if (!fileToRemove) {
             return res.status(404).json({ message: 'File not found' });
         }
@@ -462,25 +465,25 @@ router.post('/removeTaskMaterial/:taskId', (req, res) => {
             }
 
             // 移除指定的文件
-            currentMaterialPath = currentMaterialPath.filter(item => item.id !== fileId);
+            currentmaterialpath = currentmaterialpath.filter(item => item.id !== fileId);
 
             const updateQuery = `
                 UPDATE card_task
-                SET materialPath = ?
-                WHERE id = ?;
+                SET materialpath = $1
+                WHERE id = $2;
             `;
 
-            db.query(updateQuery, [JSON.stringify(currentMaterialPath), taskId], (err) => {
+            db.query(updateQuery, [JSON.stringify(currentmaterialpath), taskId], (err) => {
                 if (err) {
                     return res.status(500).json({ error: err.message });
                 }
-                // 使用 path.basename 处理 materialPath 中的 path
-                const processedMaterialPath = currentMaterialPath.map(item => ({
+                // 使用 path.basename 处理 materialpath 中的 path
+                const processedmaterialpath = currentmaterialpath.map(item => ({
                     ...item,
                     path: path.basename(item.path)
                 }));
 
-                res.status(200).json({ message: 'File removed successfully', materialPath: processedMaterialPath });
+                res.status(200).json({ message: 'File removed successfully', materialpath: processedmaterialpath });
             });
         });
     });

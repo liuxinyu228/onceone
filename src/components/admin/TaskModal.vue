@@ -25,8 +25,8 @@
             </select>
           </div>
           <div>
-            <label for="taskCategory" class="block text-sm font-medium text-gray-700">任务类别</label>
-            <select v-model="localEditingTask.taskCategory" id="taskCategory" required class="mt-1 block w-full bg-white shadow-lg rounded-none border border-gray-400 focus:border-blue-500 focus:ring-blue-500 h-8">
+            <label for="taskcategory" class="block text-sm font-medium text-gray-700">任务类别</label>
+            <select v-model="localEditingTask.taskcategory" id="taskcategory" required class="mt-1 block w-full bg-white shadow-lg rounded-none border border-gray-400 focus:border-blue-500 focus:ring-blue-500 h-8">
               <option disabled value="">请选择</option>
               <option value="保障项">保障项</option>
               <option value="风险项">风险项</option>

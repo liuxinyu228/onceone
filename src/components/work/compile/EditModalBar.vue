@@ -13,7 +13,7 @@
         <p v-else class="w-full border p-2 mb-4">{{ editedTask.title }}</p>
   
         <label class="block mb-2">任务类型：</label>
-        <p class="w-full border p-2 mb-4">{{ editedTask.taskCategory }}</p>
+        <p class="w-full border p-2 mb-4">{{ editedTask.taskcategory }}</p>
   
         <label class="block mb-2">任务描述：</label>
         <input
@@ -31,7 +31,7 @@
         <input
           v-if="editedTask.taskCategory !== '协助项'"
           type="text"
-          v-model="editedTask.reportContent"
+          v-model="editedTask.reportcontent	"
           class="w-full border p-2 mb-4"
           :disabled="isViewOnly"
         />
@@ -44,9 +44,9 @@
             @change="handleFileUpload"
             class="w-full border p-2 mb-4"
           />
-          <div v-if="editedTask.taskCategory !== '协助项' && editedTask.materialPath.length > 0" class="flex flex-wrap gap-2">
+          <div v-if="editedTask.taskCategory !== '协助项' && editedTask.materialpath.length > 0" class="flex flex-wrap gap-2">
             <div
-              v-for="(file, index) in editedTask.materialPath"
+              v-for="(file, index) in editedTask.materialpath"
               :key="index"
               class="px-3 py-1 bg-gray-200 text-gray-700 rounded-full text-sm flex items-center"
                @click="showImageToBlank(file.id)"
@@ -65,9 +65,9 @@
         </div>
     
         <div v-if="editedTask.taskCategory !== '协助项' && isViewOnly" class="w-full border p-2 mb-4">
-          <div v-if="editedTask.materialPath.length > 0" class="flex flex-wrap gap-2">
+          <div v-if="editedTask.materialpath.length > 0" class="flex flex-wrap gap-2">
             <div
-              v-for="(file, index) in editedTask.materialPath"
+              v-for="(file, index) in editedTask.materialpath"
               :key="index"
               class="px-3 py-1 bg-gray-200 text-gray-700 rounded-full text-sm flex items-center"
               @click="showImageToBlank(file.id)"
@@ -78,7 +78,7 @@
         </div>
   
         <label v-if="editedTask.taskCategory !== '协助项'" class="block mb-2">风险判断：</label>
-        <select v-if="editedTask.taskCategory !== '协助项'" v-model="editedTask.riskValue" class="w-full border p-2 mb-4 bg-white shadow" :disabled="isViewOnly">
+        <select v-if="editedTask.taskCategory !== '协助项'" v-model="editedTask.riskvalue" class="w-full border p-2 mb-4 bg-white shadow" :disabled="isViewOnly">
           <option value="high">高</option>
           <option value="medium">中</option>
           <option value="low">低</option>
@@ -159,12 +159,12 @@
         return {
           id: this.task.id,
           title: this.task.title ? this.task.title : '',
-          taskCategory: this.task.taskCategory ? this.task.taskCategory : '',
+          taskcategory: this.task.taskcategory ? this.task.taskcategory : '',
           description: this.task.description ? this.task.description : '',
           guide: this.task.guide ? this.task.guide : '',
-          reportContent: this.task.reportContent ? this.task.reportContent : '',
-          materialPath: this.task.materialPath ? this.task.materialPath : [],
-          riskValue: this.task.riskValue ? this.task.riskValue : 'low',
+          reportcontent	: this.task.reportcontent	 ? this.task.reportcontent	 : '',
+          materialpath: this.task.materialpath ? this.task.materialpath : [],
+          riskvalue: this.task.riskvalue ? this.task.riskvalue : 'low',
           status: this.task.status ? this.task.status : '待开始',
           created_at: this.task.created_at,
           updated_at: this.task.updated_at
@@ -186,8 +186,8 @@
         // 定义 formData 参数
         const formData = {
           status: this.editedTask.status ?  this.editedTask.status : '进行中',
-          reportContent: this.editedTask.reportContent ? this.editedTask.reportContent : '',
-          riskValue: this.editedTask.riskValue ? this.editedTask.riskValue : 'low'
+          reportcontent	: this.editedTask.reportcontent	 ? this.editedTask.reportcontent	 : '',
+          riskvalue: this.editedTask.riskvalue ? this.editedTask.riskvalue : 'low'
         };
         console.log(this.editedTask);
         // 使用 fetch 调用 /updateTask/:taskId 接口修改任务内容
@@ -238,7 +238,7 @@
         })
         .then(response => {
           this.showUploadProgress = false;
-          this.editedTask.materialPath = response.data.filePath;
+          this.editedTask.materialpath = response.data.filePath;
           this.$emit('save', this.editedTask, false);
           this.showAlertMessage('文件上传成功');
         })
@@ -265,8 +265,8 @@
         this.showAlert = false;
       },
       removeFile(fileId) {
-        // 从 editedTask.materialPath 中移除指定的文件
-        this.editedTask.materialPath = this.editedTask.materialPath.filter(file => file.id !== fileId);
+        // 从 editedTask.materialpath 中移除指定的文件
+        this.editedTask.materialpath = this.editedTask.materialpath.filter(file => file.id !== fileId);
 
         // 调用后端接口更新数据库
         fetch(`${config.getSetting('API_BASE_URL')}/api/removeTaskMaterial/${this.editedTask.id}`, {
@@ -286,8 +286,8 @@
         })
         .then(data => {
           this.showAlertMessage('文件移除成功');
-          // 更新前端的 materialPath
-          this.editedTask.materialPath = data.materialPath;
+          // 更新前端的 materialpath
+          this.editedTask.materialpath = data.materialpath;
         })
         .catch(error => {
           console.error('文件移除失败:', error);

@@ -3,7 +3,9 @@ const cookieParser = require('cookie-parser');
 const userRoutes = require('./routes/userRoutes');
 const taskRoutes = require('./routes/taskRoutes');
 const adminRoutes = require('./routes/adminRoutes');
-const fileManagerRoutes = require('./utils/filemanager')
+const fileManagerRoutes = require('./routes/filemanager')
+const knowledgeManagerRoutes = require('./aiAgent/KnowledgeManagerRoutes');
+const aiRoutes = require('./routes/aiRoutes')
 const app = express();
 const cors = require('cors');
 const session = require('express-session');
@@ -70,7 +72,8 @@ function isPersona(req, res, next) {
 
 // 使用用户路由
 app.use('/api', isLoggedIn, [userRoutes, taskRoutes]);
+app.use('/api', aiRoutes)
 app.use('/api/filemanager', isLoggedIn, isPersona, fileManagerRoutes);
 app.use('/api/admin', isLoggedIn, isAdmin, adminRoutes);
-
+app.use('/api/aiAgent',knowledgeManagerRoutes);
 module.exports = app;

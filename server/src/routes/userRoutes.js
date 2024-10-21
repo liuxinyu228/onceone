@@ -41,17 +41,17 @@ router.post('/login', (req, res) => {
     }
 
     // 查询数据库中的用户信息
-    const query = 'SELECT username, is_admin, password, status, group_id, persona_id FROM card_users WHERE username = ?';
+    const query = 'SELECT username, is_admin, password, status, group_id, persona_id FROM card_users WHERE username = $1';
     db.query(query, [username], (err, results) => {
         if (err) {
             return res.status(500).json({ message: 'Database error', error: err });
         }
 
-        if (results.length === 0 || results[0].password !== password) {
+        if (results.rows.length === 0 || results.rows[0].password !== password) {
             return res.status(401).json({ message: 'Invalid username or password' });
         }
 
-        const user = results[0];
+        const user = results.rows[0];
 
         // 检查用户状态
         if (user.status === 1) {
@@ -132,23 +132,23 @@ router.post('/updatePassword', (req, res) => {
     }
 
     // 查询数据库中的用户信息以验证旧密码
-    const query = 'SELECT id,password FROM card_users WHERE username = ?';
+    const query = 'SELECT id, password FROM card_users WHERE username = $1';
     db.query(query, [userId], (err, results) => {
         if (err) {
-            return res.status(500).json({ message: 'Database error', error: err });
+            return res.status(500).json({ message: 'Database error' });
         }
-        if (results.length === 0 || results[0].password !== oldPassword) {
+        if (results.rows.length === 0 || results.rows[0].password !== oldPassword) {
             return res.status(401).json({ message: 'Old password is incorrect' });
         }
 
-        const userId = results[0].id;
+        const userId = results.rows[0].id;
 
         // 调用 cardUser 的 updatePassword 方法
         cardUser.updatePassword(userId, newPassword, (err, result) => {
             if (err) {
-                return res.status(500).json({ message: 'Database error', error: err });
+                return res.status(500).json({ message: 'Database error' });
             }
-            if (result.affectedRows === 0) {
+            if (result.rowCount === 0) {
                 return res.status(404).json({ message: 'User not found' });
             }
             res.status(200).json({ message: 'Password updated successfully' });

@@ -22,6 +22,19 @@
                 <span v-if="!isCollapsed">参考文件管理</span>
               </router-link>
             </li>
+            <li>
+              <router-link to="/compile/knowledge" class="nav-item" active-class="text-blue-600" exact-active-class="text-blue-600">
+                <Bot class="icon" />
+                <span v-if="!isCollapsed">知识库</span>
+              </router-link>
+            </li>
+
+            <li>
+              <router-link to="/compile/editor" class="nav-item" active-class="text-blue-600" exact-active-class="text-blue-600">
+                <Bot class="icon" />
+                <span v-if="!isCollapsed">编辑器</span>
+              </router-link>
+            </li>
           </ul>
         </nav>
       </div>
@@ -37,7 +50,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import UserInfo from '@/components/UserInfo.vue'
 import Cookies from 'js-cookie'
 import { decrypt } from '@/util/util.js'
-import { NotebookPen, CalendarCheck, FileBadge } from 'lucide-vue-next'
+import { NotebookPen, CalendarCheck, FileBadge,Bot } from 'lucide-vue-next'
 
 const userInfo = JSON.parse(decrypt(Cookies.get('userInfo')))
 const isCollapsed = ref(false)

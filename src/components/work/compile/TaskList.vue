@@ -53,7 +53,7 @@ const isEditModalOpen = ref(false); // 控制编辑弹窗是否显示
 const isViewModalOpen = ref(false); // 控制查看弹窗是否显示
 const selectedTask = ref(null); // 当前选中的任务
 const filters = ref({
-  taskCategory: '',
+  taskcategory: '',
   status: '',
   search: ''
 });
@@ -62,7 +62,7 @@ const filters = ref({
 const filteredTypeTaskNum = computed(() => {
   return tasks.value.filter(task => {
     return (
-      (filters.value.taskCategory === '' || task.taskCategory === filters.value.taskCategory) &&
+      (filters.value.taskcategory === '' || task.taskcategory === filters.value.taskcategory) &&
       (filters.value.status === '' || task.status === filters.value.status) &&
       (filters.value.search === '' || task.title.includes(filters.value.search))
     );
@@ -80,7 +80,7 @@ const filteredTasks = computed(() => {
 
   const filteredTypeTasks = tasks.value.filter(task => {
     return (
-      (filters.value.taskCategory === '' || task.taskCategory === filters.value.taskCategory) &&
+      (filters.value.taskcategory === '' || task.taskcategory === filters.value.taskcategory) &&
       (filters.value.status === '' || task.status === filters.value.status) &&
       (filters.value.search === '' || task.title.includes(filters.value.search))
     );

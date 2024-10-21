@@ -9,6 +9,7 @@
         <UserManagement v-if="activeTab === 'users'" />
         <TaskManagement v-if="activeTab === 'tasks'" />
         <WorkManagement v-if="activeTab === 'workManagement'" />
+        <KnowledgeManager v-if="activeTab === 'knowledgeManager'" />
       </main>
     </div>
   </div>
@@ -20,6 +21,7 @@ import AdminSidebar from '@/components/admin/AdminSidebar.vue'
 import UserManagement from '@/components/admin/UserManagement.vue'
 import TaskManagement from '@/components/admin/TaskManagement.vue'
 import WorkManagement from '@/components/admin/WorkManagement.vue'
+import KnowledgeManager from '@/components/admin/KnowledgeManager.vue'
 import UserInfo from '@/components/UserInfo.vue'
 
 export default {
@@ -28,6 +30,7 @@ export default {
     UserManagement,
     TaskManagement,
     WorkManagement,
+    KnowledgeManager,
     UserInfo
   },
   setup() {

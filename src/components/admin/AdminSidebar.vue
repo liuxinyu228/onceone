@@ -28,6 +28,12 @@
           <span :class="{ 'hidden': !sidebarOpen }">Work Management</span>
         </div>
       </a>
+      <a @click="setActiveTab('knowledgeManager')" :class="['block py-2 px-4 text-sm hover:bg-gray-700 transition duration-200', { 'bg-gray-700': activeTab === 'workManagement' }]">
+        <div class="flex items-center">
+          <ClipboardListIcon class="h-5 w-5 mr-2" />
+          <span :class="{ 'hidden': !sidebarOpen }">knowledgeManager</span>
+        </div>
+      </a>
     </nav>
   </div>
 </template>

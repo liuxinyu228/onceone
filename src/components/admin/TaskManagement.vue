@@ -57,7 +57,7 @@
                 {{ item.guide.length > 30 ? item.guide.slice(0, 30) + '...' : item.guide }}
               </span>
             </td>
-            <td class="p-2 border-b">{{ item.taskCategory }}</td>
+            <td class="p-2 border-b">{{ item.taskcategory }}</td>
             <td class="p-2 border-b">
               <button
                 @click="editItemShowModal(item)"
@@ -127,7 +127,7 @@ import TaskModal from '@/components/admin/TaskModal.vue' // 引入 TaskModal 组
 import optConfirm from '@/components/common/optConfirm.vue'
 
 const title = ref('TaskTemplate Management')
-const headers = ['title', 'work_classification', 'description', 'guide', 'taskCategory']
+const headers = ['title', 'work_classification', 'description', 'guide', 'taskcategory']
 const searchQuery = ref('')
 const selectedCategory = ref('All')
 const categories = ['All','新技术新业务安全评估', '涉诈风险安全评估']
