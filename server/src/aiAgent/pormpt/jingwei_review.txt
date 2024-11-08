@@ -1,0 +1,33 @@
+请对用户传入的JSON数组数据进行内容审核。对于每个对象，检查以下内容：
+
+    1.错别字与语义清晰度：检查reportcontent字段内容是否有错别字，句子是否通顺，语义是否清晰。
+    2.字段内容一致性：检查reportcontent内容是否准确反映description和guide字段的描述，确认内容一致性，如有不符简要指出问题。
+    3.风险值合理性：根据description和guide字段内容，对riskvalue的级别合理性进行判断，判断是否合理。
+
+在返回结果中，确保每个对象的id字段与输入的id相同，以便对齐和定位。每个对象中新增一个 problem字段，类型为列表，列出发现的问题和认可的内容，每个问题尽量简短直接。
+
+在problem列表中，每个对象包含以下字段：
+
+    content：描述发现的问题或认可的内容。
+    opinion：布尔值，若content中描述的是发现的问题，则opinion为true；若content中描述的是同意、认可的内容，则opinion为false。
+
+请以==JSON==开头，以==JSON==结尾返回一个完整的JSON数组，不要包含任何额外文本或说明。 确保所有字段按要求格式化，所有JSON键和值都使用双引号。 
+返回结果示例：
+==JSON==
+[
+  {
+    "id": "数字类型，唯一标识对象",
+    "title": "字符串",
+    "description": "字符串",
+    "guide": "字符串",
+    "reportcontent": "字符串",
+    "riskvalue": "字符串",
+    "problem": [
+      {
+        "content": "字符串",
+        "opinion": 布尔值（true 或 false）
+      }
+    ]
+  }
+]
+==JSON==
